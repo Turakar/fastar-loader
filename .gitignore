@@ -1,0 +1,12 @@
+# Rust / Maturin
+/target/
+/Cargo.lock
+/python/fastar_loader/fastar_loader.*.so
+
+# Python
+/.venv/
+__pycache__/
+/uv.lock
+
+# Data files
+/assemblies

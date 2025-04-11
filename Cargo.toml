@@ -1,0 +1,21 @@
+[package]
+name = "fastar-loader"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "fastar_loader"
+crate-type = ["cdylib"]
+
+[dependencies]
+anyhow = { version = "1.0.97", features = ["backtrace"] }
+glob = "0.3.2"
+shared_memory = "0.12.4"
+
+[dependencies.noodles]
+version = "0.76.0"
+features = ["bgzf", "core", "fasta"]
+
+[dependencies.pyo3]
+version = "0.24.1"
+features = ["extension-module", "generate-import-lib"]

@@ -1,0 +1,36 @@
+[project]
+name = "fastar-loader"
+version = "0.1.0"
+description = "A faster loader for multiprocess random access to FASTA files."
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+]
+
+[dependency-groups]
+dev = [
+    "maturin>=1.8.3,<2.0",
+    "pre-commit>=4.2.0",
+]
+
+[build-system]
+requires = ["maturin>=1.0,<2.0"]
+build-backend = "maturin"
+
+[tool.maturin]
+# "extension-module" tells pyo3 we want to build an extension module (skips linking against libpython.so)
+features = ["pyo3/extension-module"]
+python-source = "python"
+
+[tool.snakefmt]
+line-length = 100
+
+[tool.ruff]
+line-length = 100
+extend-include = ["*.ipynb"]
+
+[tool.ruff.lint]
+extend-select = ["I"]
+
+[tool.pyright]
+include = ["src/python"]
