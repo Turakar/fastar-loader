@@ -1,13 +1,13 @@
+mod index;
+// mod shmem;
+mod util;
+
 use anyhow::Result;
+use index::{IndexMap, IndexMapTrait};
 use noodles::bgzf;
 use noodles::core::{Position, Region};
 use noodles::fasta;
 use pyo3::{exceptions::PyRuntimeError, prelude::*};
-
-mod index_map;
-use index_map::IndexMap;
-
-mod util;
 
 #[pyfunction]
 fn read_sequence(
@@ -62,23 +62,68 @@ impl PyIndexMap {
         Ok(self.map.names())
     }
 
-    fn get_sequence(
+    fn read_sequence(
         &self,
         fasta_name: &str,
-        contig: &str,
+        contig: &[u8],
         start: u64,
         length: u64,
     ) -> PyResult<Vec<u8>> {
         self.map
-            .get_sequence(fasta_name, contig, start, length)
+            .read_sequence(fasta_name, contig, start, length)
             .map_err(|e| PyRuntimeError::new_err(format!("{:?}", e)))
     }
+
+    // fn to_shared_memory(&self) -> PyResult<SharedMemoryIndexMap> {
+    //     let shmem = shmem::ShmemReadonlyContainer::new(&self.map)
+    //         .map_err(|e| PyRuntimeError::new_err(format!("{:?}", e)))?;
+    //     Ok(SharedMemoryIndexMap { shmem })
+    // }
 }
+
+// #[pyclass(frozen)]
+// struct SharedMemoryIndexMap {
+//     shmem: shmem::ShmemReadonlyContainer<IndexMap>,
+// }
+
+// #[pymethods]
+// impl SharedMemoryIndexMap {
+//     #[getter]
+//     fn handle(&self) -> PyResult<&str> {
+//         let handle = self.shmem.get_os_id();
+//         Ok(handle)
+//     }
+
+//     #[staticmethod]
+//     fn from_handle(handle: &str) -> PyResult<Self> {
+//         let shmem = shmem::ShmemReadonlyContainer::from_os_id(&handle)
+//             .map_err(|e| PyRuntimeError::new_err(format!("{:?}", e)))?;
+//         Ok(SharedMemoryIndexMap { shmem })
+//     }
+
+//     #[getter]
+//     fn names(&self) -> PyResult<Vec<&str>> {
+//         Ok(self.shmem.as_ref().names())
+//     }
+
+//     fn get_sequence(
+//         &self,
+//         fasta_name: &str,
+//         contig: &[u8],
+//         start: u64,
+//         length: u64,
+//     ) -> PyResult<Vec<u8>> {
+//         self.shmem
+//             .as_ref()
+//             .read_sequence(fasta_name, contig, start, length)
+//             .map_err(|e| PyRuntimeError::new_err(format!("{:?}", e)))
+//     }
+// }
 
 #[pymodule]
 fn fastar_loader(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_wrapped(wrap_pyfunction!(read_sequence))?;
     m.add_class::<PyIndexMap>()?;
-
+    // m.add_class::<SharedMemoryIndexMap>()?;
     Ok(())
 }
