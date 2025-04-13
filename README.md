@@ -2,7 +2,7 @@
 
 A faster loader for compressed FASTA files using indices in shared memory.
 
-If you want to read a part of a sequence from a compressed FASTA file, you typically want to use the blocked GZIP format (BGZF) with a `.gzi` BGZF index and a `.fai` FASTA index. This requires you to keep the indices in memory, which can become an issue if you do this in a multiprocessing environment, because you will have on copy of each index for each process (e.g., in a Torch DataLoader).
+If you want to read a part of a sequence from a compressed FASTA file, you typically want to use the blocked GZIP format (BGZF) with a `.gzi` BGZF index and a `.fai` FASTA index. This requires you to keep the indices in memory, which can become an issue if you do this in a multiprocessing environment, because you will have one copy of each index for each process (e.g., in a Torch DataLoader).
 
 To alleviate this, this library can transfer the indices to shared memory, allowing for usage of the indices from multiple processes while keeping only one copy of the indices in memory.
 
@@ -34,7 +34,7 @@ loader.index()
 loader.read_sequence(name="GCA_000146045.2.fna.gz", contig="BK006935.2", start=0, length=60)
 ```
 
-So far, the indices remain in local memory. To enable shared memory usage and thereby pickling and multiprocessing for `FastarLoader`, use `FastarLoader.to_shared_memory()` (in-place).
+So far, the indices remained in local memory. To enable shared memory usage and thereby pickling and multiprocessing for `FastarLoader`, use `FastarLoader.to_shared_memory()` (in-place).
 
 
 ## Development
@@ -43,7 +43,7 @@ This project uses uv, maturin, pytest, cargo, git-lfs and pre-commit. Useful com
 - `maturin develop`: Installs a development version of the Rust library (faster).
 - `pytest`: Runs the Python tests.
 - `cargo test`: Runs the Rust tests.
-- `pre-commit install`: Run this **before commmit** to ensure that all checks are run on each commit.
+- `pre-commit install`: Run this **before your first commit** to ensure that all checks are run on each commit.
 
 
 ## Implementation details
