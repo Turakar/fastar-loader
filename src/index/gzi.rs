@@ -26,6 +26,7 @@ impl Gzi {
 impl From<&NoodlesIndex> for Gzi {
     fn from(index: &NoodlesIndex) -> Self {
         let entries = index
+            .as_ref()
             .iter()
             .map(|(compressed, uncompressed)| GziRecord {
                 compressed: *compressed,

@@ -31,7 +31,7 @@ fn read_sequence_(
     start: usize,
     length: usize,
 ) -> Result<Vec<u8>> {
-    let bgzf_reader = bgzf::indexed_reader::Builder::default()
+    let bgzf_reader = bgzf::io::indexed_reader::Builder::default()
         .set_index(bgzf::gzi::read(gzi_path)?)
         .build_from_path(fasta_path)?;
     let mut fasta_reader = fasta::indexed_reader::Builder::default()

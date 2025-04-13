@@ -44,9 +44,10 @@ impl Fai {
 impl From<&NoodlesIndex> for Fai {
     fn from(index: &NoodlesIndex) -> Self {
         let entries = index
+            .as_ref()
             .iter()
             .map(|record| FaiRecord {
-                contig: record.name().to_owned(),
+                contig: record.name().to_vec(),
                 length: record.length(),
                 offset: record.offset(),
                 line_bases: record.line_bases(),

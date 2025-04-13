@@ -15,7 +15,7 @@ rkyv = { version = "0.8.10", features = ["pointer_width_64"] }
 shared_memory = "0.12.4"
 
 [dependencies.noodles]
-version = "0.76.0"
+version = "0.96.0"
 features = ["bgzf", "core", "fasta"]
 
 [dependencies.pyo3]
