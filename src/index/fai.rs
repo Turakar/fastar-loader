@@ -4,7 +4,7 @@ use anyhow::Result;
 use noodles::fasta::fai::Index as NoodlesIndex;
 use rkyv::{Archive, Deserialize, Serialize};
 
-#[derive(Archive, Serialize, Deserialize)]
+#[derive(Archive, Serialize, Deserialize, Debug, PartialEq, Clone)]
 struct FaiRecord {
     contig: Vec<u8>,
     length: u64,
@@ -29,7 +29,7 @@ impl FaiRecordTrait for ArchivedFaiRecord {
     }
 }
 
-#[derive(Archive, Serialize, Deserialize)]
+#[derive(Archive, Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub(super) struct Fai {
     entries: Vec<FaiRecord>,
 }

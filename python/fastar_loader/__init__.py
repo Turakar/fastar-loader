@@ -39,7 +39,7 @@ class FastarLoader:
 
     @property
     def in_shared_memory(self) -> bool:
-        return isinstance(self._index_map_, _rust.SharedMemoryIndexMap)
+        return isinstance(self._index_map_, _rust.ShmemIndexMap)
 
     @property
     def names(self) -> list[str]:
@@ -62,7 +62,7 @@ class FastarLoader:
 
     def __setstate__(self, state: dict[str, object]) -> None:
         if "_index_map_" in state:
-            state["_index_map_"] = _rust.SharedMemoryIndexMap.from_handle(state["_index_map_"])
+            state["_index_map_"] = _rust.ShmemIndexMap.from_handle(state["_index_map_"])
         self.__dict__.update(state)
 
     def __repr__(self):

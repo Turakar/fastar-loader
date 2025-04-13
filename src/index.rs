@@ -20,13 +20,13 @@ use std::{
 
 use crate::util::with_suffix;
 
-#[derive(Archive, Serialize, Deserialize)]
+#[derive(Archive, Serialize, Deserialize, Debug, PartialEq, Clone)]
 struct Index {
     gzi: Gzi,
     fai: Fai,
 }
 
-#[derive(Archive, Serialize, Deserialize)]
+#[derive(Archive, Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct IndexMap {
     dir: String,
     map: BTreeMap<String, Index>,
@@ -143,5 +143,20 @@ impl IndexMapTrait for ArchivedIndexMap {
         let offset = entry.gzi.query(pos)?;
         let path = Path::new(self.dir.as_ref()).join(format!("{}.fna.gz", fasta_name));
         Ok((path, offset))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_archive() {
+        let data = IndexMap::build("test_data").unwrap();
+        let bytes: rkyv::util::AlignedVec = rkyv::to_bytes::<rkyv::rancor::Error>(&data).unwrap();
+        println!("Data pointer: {:#x}", &bytes.as_ptr().addr());
+        let archive =
+            rkyv::access::<ArchivedIndexMap, rkyv::rancor::Error>(bytes.as_ref()).unwrap();
+        assert_eq!(archive.names(), data.names());
     }
 }

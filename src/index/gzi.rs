@@ -5,13 +5,13 @@ use noodles::bgzf::gzi::Index as NoodlesIndex;
 use noodles::bgzf::VirtualPosition;
 use rkyv::{Archive, Deserialize, Serialize};
 
-#[derive(Archive, Serialize, Deserialize)]
+#[derive(Archive, Serialize, Deserialize, Debug, PartialEq, Clone)]
 struct GziRecord {
     compressed: u64,
     uncompressed: u64,
 }
 
-#[derive(Archive, Serialize, Deserialize)]
+#[derive(Archive, Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub(super) struct Gzi {
     entries: Vec<GziRecord>,
 }
