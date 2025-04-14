@@ -8,7 +8,7 @@ use noodles::bgzf;
 use noodles::core::{Position, Region};
 use noodles::fasta;
 use pyo3::{exceptions::PyRuntimeError, prelude::*};
-use shmem::ShmemIndexMap;
+use shmem::ShmemArchive;
 
 #[pyfunction]
 fn read_sequence(
@@ -76,7 +76,7 @@ impl PyIndexMap {
     }
 
     fn to_shared_memory(&self) -> PyResult<PyShmemIndexMap> {
-        let shmem = ShmemIndexMap::new(&self.map)
+        let shmem = ShmemArchive::new(&self.map)
             .map_err(|e| PyRuntimeError::new_err(format!("{:?}", e)))?;
         Ok(PyShmemIndexMap { shmem })
     }
@@ -84,7 +84,7 @@ impl PyIndexMap {
 
 #[pyclass(frozen, name = "ShmemIndexMap")]
 struct PyShmemIndexMap {
-    shmem: ShmemIndexMap,
+    shmem: ShmemArchive<IndexMap>,
 }
 
 #[pymethods]
@@ -97,7 +97,7 @@ impl PyShmemIndexMap {
 
     #[staticmethod]
     fn from_handle(handle: &str) -> PyResult<Self> {
-        let shmem = ShmemIndexMap::from_os_id(handle)
+        let shmem = ShmemArchive::from_os_id(handle)
             .map_err(|e| PyRuntimeError::new_err(format!("{:?}", e)))?;
         Ok(PyShmemIndexMap { shmem })
     }
