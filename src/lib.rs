@@ -3,7 +3,7 @@ mod shmem;
 mod util;
 
 use anyhow::Result;
-use index::{IndexMap, IndexMapTrait};
+use index::{FastaMap, IndexMapTrait, TrackMap, TrackMapTrait};
 use noodles::bgzf;
 use noodles::core::{Position, Region};
 use noodles::fasta;
@@ -45,17 +45,17 @@ fn read_sequence_(
     Ok(sequence)
 }
 
-#[pyclass(name = "IndexMap")]
-struct PyIndexMap {
-    map: IndexMap,
+#[pyclass(name = "FastaMap")]
+struct PyFastaMap {
+    map: FastaMap,
 }
 
 #[pymethods]
-impl PyIndexMap {
+impl PyFastaMap {
     #[staticmethod]
     fn build(dir: &str) -> PyResult<Self> {
-        let map = IndexMap::build(dir).map_err(|e| PyRuntimeError::new_err(format!("{:?}", e)))?;
-        Ok(PyIndexMap { map })
+        let map = FastaMap::build(dir).map_err(|e| PyRuntimeError::new_err(format!("{:?}", e)))?;
+        Ok(PyFastaMap { map })
     }
 
     #[getter]
@@ -75,20 +75,20 @@ impl PyIndexMap {
             .map_err(|e| PyRuntimeError::new_err(format!("{:?}", e)))
     }
 
-    fn to_shared_memory(&self) -> PyResult<PyShmemIndexMap> {
+    fn to_shared_memory(&self) -> PyResult<PyShmemFastaMap> {
         let shmem = ShmemArchive::new(&self.map)
             .map_err(|e| PyRuntimeError::new_err(format!("{:?}", e)))?;
-        Ok(PyShmemIndexMap { shmem })
+        Ok(PyShmemFastaMap { shmem })
     }
 }
 
-#[pyclass(frozen, name = "ShmemIndexMap")]
-struct PyShmemIndexMap {
-    shmem: ShmemArchive<IndexMap>,
+#[pyclass(frozen, name = "ShmemFastaMap")]
+struct PyShmemFastaMap {
+    shmem: ShmemArchive<FastaMap>,
 }
 
 #[pymethods]
-impl PyShmemIndexMap {
+impl PyShmemFastaMap {
     #[getter]
     fn handle(&self) -> PyResult<&str> {
         let handle = self.shmem.get_os_id();
@@ -99,7 +99,7 @@ impl PyShmemIndexMap {
     fn from_handle(handle: &str) -> PyResult<Self> {
         let shmem = ShmemArchive::from_os_id(handle)
             .map_err(|e| PyRuntimeError::new_err(format!("{:?}", e)))?;
-        Ok(PyShmemIndexMap { shmem })
+        Ok(PyShmemFastaMap { shmem })
     }
 
     #[getter]
@@ -121,10 +121,88 @@ impl PyShmemIndexMap {
     }
 }
 
+#[pyclass(name = "TrackMap")]
+struct PyTrackMap {
+    map: TrackMap,
+}
+
+#[pymethods]
+impl PyTrackMap {
+    #[staticmethod]
+    fn build(dir: &str) -> PyResult<Self> {
+        let map = TrackMap::build(dir).map_err(|e| PyRuntimeError::new_err(format!("{:?}", e)))?;
+        Ok(PyTrackMap { map })
+    }
+
+    #[getter]
+    fn names(&self) -> PyResult<Vec<&str>> {
+        Ok(self.map.names())
+    }
+
+    fn read_sequence(
+        &self,
+        track_name: &str,
+        contig: &[u8],
+        start: u64,
+        length: u64,
+    ) -> PyResult<Vec<f32>> {
+        self.map
+            .read_sequence(track_name, contig, start, length)
+            .map_err(|e| PyRuntimeError::new_err(format!("{:?}", e)))
+    }
+
+    fn to_shared_memory(&self) -> PyResult<PyShmemTrackMap> {
+        let shmem = ShmemArchive::new(&self.map)
+            .map_err(|e| PyRuntimeError::new_err(format!("{:?}", e)))?;
+        Ok(PyShmemTrackMap { shmem })
+    }
+}
+
+#[pyclass(frozen, name = "ShmemTrackMap")]
+struct PyShmemTrackMap {
+    shmem: ShmemArchive<TrackMap>,
+}
+
+#[pymethods]
+impl PyShmemTrackMap {
+    #[getter]
+    fn handle(&self) -> PyResult<&str> {
+        let handle = self.shmem.get_os_id();
+        Ok(handle)
+    }
+
+    #[staticmethod]
+    fn from_handle(handle: &str) -> PyResult<Self> {
+        let shmem = ShmemArchive::from_os_id(handle)
+            .map_err(|e| PyRuntimeError::new_err(format!("{:?}", e)))?;
+        Ok(PyShmemTrackMap { shmem })
+    }
+
+    #[getter]
+    fn names(&self) -> PyResult<Vec<&str>> {
+        Ok(self.shmem.as_ref().names())
+    }
+
+    fn read_sequence(
+        &self,
+        track_name: &str,
+        contig: &[u8],
+        start: u64,
+        length: u64,
+    ) -> PyResult<Vec<f32>> {
+        self.shmem
+            .as_ref()
+            .read_sequence(track_name, contig, start, length)
+            .map_err(|e| PyRuntimeError::new_err(format!("{:?}", e)))
+    }
+}
+
 #[pymodule]
 fn fastar_loader(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_wrapped(wrap_pyfunction!(read_sequence))?;
-    m.add_class::<PyIndexMap>()?;
-    m.add_class::<PyShmemIndexMap>()?;
+    m.add_class::<PyFastaMap>()?;
+    m.add_class::<PyShmemFastaMap>()?;
+    m.add_class::<PyTrackMap>()?;
+    m.add_class::<PyShmemTrackMap>()?;
     Ok(())
 }

@@ -29,17 +29,17 @@ class FastarLoader:
         self._index_map_ = None
 
     def index(self) -> None:
-        self._index_map_ = _rust.IndexMap.build(self._path)
+        self._index_map_ = _rust.FastaMap.build(self._path)
 
     @property
-    def _index_map(self) -> _rust.IndexMap:
+    def _index_map(self) -> _rust.FastaMap:
         if self._index_map_ is None:
             raise ValueError("Index map not built. Call index() first.")
         return self._index_map_
 
     @property
     def in_shared_memory(self) -> bool:
-        return isinstance(self._index_map_, _rust.ShmemIndexMap)
+        return isinstance(self._index_map_, _rust.ShmemFastaMap)
 
     @property
     def names(self) -> list[str]:
@@ -62,7 +62,7 @@ class FastarLoader:
 
     def __setstate__(self, state: dict[str, object]) -> None:
         if "_index_map_" in state:
-            state["_index_map_"] = _rust.ShmemIndexMap.from_handle(state["_index_map_"])
+            state["_index_map_"] = _rust.ShmemFastaMap.from_handle(state["_index_map_"])
         self.__dict__.update(state)
 
     def __repr__(self):

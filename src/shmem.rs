@@ -105,23 +105,23 @@ fn type_specific_magic<T: 'static>() -> u64 {
 
 #[cfg(test)]
 mod tests {
-    use crate::index::IndexMap;
+    use crate::index::FastaMap;
     use crate::index::IndexMapTrait;
 
     use super::*;
 
     #[test]
     fn test_create() {
-        let data = IndexMap::build("test_data").unwrap();
-        let container: ShmemArchive<IndexMap> = ShmemArchive::new(&data).unwrap();
+        let data = FastaMap::build("test_data").unwrap();
+        let container: ShmemArchive<FastaMap> = ShmemArchive::new(&data).unwrap();
         let reference = container.as_ref();
         assert_eq!(reference.names(), data.names());
     }
 
     #[test]
     fn test_invalid_magic() {
-        let data = IndexMap::build("test_data").unwrap();
-        let container: ShmemArchive<IndexMap> = ShmemArchive::new(&data).unwrap();
+        let data = FastaMap::build("test_data").unwrap();
+        let container: ShmemArchive<FastaMap> = ShmemArchive::new(&data).unwrap();
         let os_id = container.get_os_id();
         let shmem = ShmemConf::new().os_id(os_id).open().unwrap();
         unsafe {
@@ -129,22 +129,22 @@ mod tests {
             // Write an invalid magic value at the beginning of the shared memory
             std::ptr::write(shmem_ptr as *mut u64, 0);
         }
-        let result: Result<ShmemArchive<IndexMap>> = ShmemArchive::from_os_id(os_id);
+        let result: Result<ShmemArchive<FastaMap>> = ShmemArchive::from_os_id(os_id);
         assert!(result.is_err());
     }
 
     #[test]
     fn test_from_os_id() {
-        let data = IndexMap::build("test_data").unwrap();
-        let container: ShmemArchive<IndexMap> = ShmemArchive::new(&data).unwrap();
+        let data = FastaMap::build("test_data").unwrap();
+        let container: ShmemArchive<FastaMap> = ShmemArchive::new(&data).unwrap();
         let os_id = container.get_os_id();
-        let new_container: ShmemArchive<IndexMap> = ShmemArchive::from_os_id(os_id).unwrap();
+        let new_container: ShmemArchive<FastaMap> = ShmemArchive::from_os_id(os_id).unwrap();
         assert_eq!(container.as_ref().names(), new_container.as_ref().names());
     }
 
     #[test]
     fn test_nontrivial_magic() {
-        let magic_value = type_specific_magic::<IndexMap>();
+        let magic_value = type_specific_magic::<FastaMap>();
         println!("Magic value: {:#x}", magic_value);
         assert_ne!(magic_value, 0);
         assert_ne!(magic_value, 1);

@@ -6,42 +6,42 @@ use noodles::bgzf::VirtualPosition;
 use rkyv::{Archive, Deserialize, Serialize};
 
 #[derive(Archive, Serialize, Deserialize, Debug, PartialEq, Clone)]
-struct GziRecord {
+struct Record {
     compressed: u64,
     uncompressed: u64,
 }
 
 #[derive(Archive, Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub(super) struct Gzi {
-    entries: Vec<GziRecord>,
+pub(super) struct BgzfIndex {
+    entries: Vec<Record>,
 }
 
-impl Gzi {
+impl BgzfIndex {
     pub fn read<P: AsRef<Path>>(path: P) -> Result<Self> {
         let index: NoodlesIndex = noodles::bgzf::gzi::read(path)?;
-        Ok(Gzi::from(&index))
+        Ok(BgzfIndex::from(&index))
     }
 }
 
-impl From<&NoodlesIndex> for Gzi {
+impl From<&NoodlesIndex> for BgzfIndex {
     fn from(index: &NoodlesIndex) -> Self {
         let entries = index
             .as_ref()
             .iter()
-            .map(|(compressed, uncompressed)| GziRecord {
+            .map(|(compressed, uncompressed)| Record {
                 compressed: *compressed,
                 uncompressed: *uncompressed,
             })
             .collect();
-        Gzi { entries }
+        BgzfIndex { entries }
     }
 }
 
-pub(super) trait GziTrait {
+pub(super) trait BgzfIndexTrait {
     fn query(&self, pos: u64) -> Result<VirtualPosition>;
 }
 
-impl GziTrait for Gzi {
+impl BgzfIndexTrait for BgzfIndex {
     fn query(&self, pos: u64) -> Result<VirtualPosition> {
         let i = self.entries.partition_point(|r| r.uncompressed <= pos);
         let (compressed, uncompressed) = match i {
@@ -56,7 +56,7 @@ impl GziTrait for Gzi {
     }
 }
 
-impl GziTrait for ArchivedGzi {
+impl BgzfIndexTrait for ArchivedBgzfIndex {
     fn query(&self, pos: u64) -> Result<VirtualPosition> {
         let i = self.entries.partition_point(|r| r.uncompressed <= pos);
         let (compressed, uncompressed) = match i {
