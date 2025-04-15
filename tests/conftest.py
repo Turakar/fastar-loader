@@ -3,7 +3,7 @@ import shutil
 import tempfile
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Iterator, cast
+from typing import Iterator
 
 import numpy as np
 import polars as pl
@@ -54,7 +54,7 @@ def pyfaidx_fasta(path: Path) -> Iterator[pyfaidx.Fasta]:
 def fasta_test_data(
     request: pytest.FixtureRequest,
     assemblies_path: Path,
-) -> tuple[Path, str, str, int, int, bytes]:
+) -> tuple[Path, str, str, int, int, np.ndarray]:
     param = request.param
     name = param["name"]
     contig = param["contig"]
@@ -62,7 +62,9 @@ def fasta_test_data(
     length = param["length"]
     path = assemblies_path / f"{name}.fna.gz"
     with pyfaidx_fasta(path) as fasta:
-        sequence = fasta[contig][start : start + length]
+        record = fasta[contig][start : start + length]
+        assert record is not None
+        sequence = np.frombuffer(record.seq.encode("utf-8"), dtype=np.uint8)
     assert sequence is not None
     assert len(sequence) == length
     return (
@@ -71,7 +73,7 @@ def fasta_test_data(
         contig,
         start,
         length,
-        sequence.seq.encode("utf-8"),
+        sequence,
     )
 
 
@@ -82,7 +84,7 @@ def fasta_test_data(
 def track_test_data(
     request: pytest.FixtureRequest,
     tracks_path: Path,
-) -> tuple[Path, str, str, int, int, list[float]]:
+) -> tuple[Path, str, str, int, int, np.ndarray]:
     # parse request
     param = request.param
     name = param["name"]
@@ -118,5 +120,5 @@ def track_test_data(
         contig,
         start,
         length,
-        cast(list[float], data.tolist()),
+        data,
     )

@@ -3,8 +3,10 @@ import pickle
 from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 
+import numpy as np
 import pytest
 from fastar_loader import FastarLoader
+from numpy.testing import assert_array_equal
 
 
 @pytest.fixture()
@@ -28,40 +30,40 @@ def test_names_shmem(loader: FastarLoader, expected_names: list[str]) -> None:
 
 
 def test_read_sequence(
-    loader: FastarLoader, fasta_test_data: tuple[Path, str, str, int, int, bytes]
+    loader: FastarLoader, fasta_test_data: tuple[Path, str, str, int, int, np.ndarray]
 ) -> None:
     _, name, contig, start, length, expected_sequence = fasta_test_data
     sequence = loader.read_sequence(name, contig, start, length)
-    assert sequence == expected_sequence
+    assert_array_equal(sequence, expected_sequence)
 
 
 def test_pickle(
-    loader: FastarLoader, fasta_test_data: tuple[Path, str, str, int, int, bytes]
+    loader: FastarLoader, fasta_test_data: tuple[Path, str, str, int, int, np.ndarray]
 ) -> None:
     loader.to_shared_memory()
 
     _, name, contig, start, length, expected_sequence = fasta_test_data
     sequence = loader.read_sequence(name, contig, start, length)
-    assert sequence == expected_sequence
+    assert_array_equal(sequence, expected_sequence)
 
     pickled_loader = pickle.dumps(loader)
     unpickled_loader = pickle.loads(pickled_loader)
 
     sequence = unpickled_loader.read_sequence(name, contig, start, length)
-    assert sequence == expected_sequence
+    assert_array_equal(sequence, expected_sequence)
 
 
 def test_multiprocess(
-    loader: FastarLoader, fasta_test_data: tuple[Path, str, str, int, int, bytes]
+    loader: FastarLoader, fasta_test_data: tuple[Path, str, str, int, int, np.ndarray]
 ) -> None:
     loader.to_shared_memory()
 
     _, name, contig, start, length, expected_sequence = fasta_test_data
     sequence = loader.read_sequence(name, contig, start, length)
-    assert sequence == expected_sequence
+    assert_array_equal(sequence, expected_sequence)
 
     with ProcessPoolExecutor(mp_context=multiprocessing.get_context("spawn")) as executor:
         future = executor.submit(loader.read_sequence, name, contig, start, length)
         sequence = future.result()
 
-    assert sequence == expected_sequence
+    assert_array_equal(sequence, expected_sequence)

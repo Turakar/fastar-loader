@@ -1,5 +1,7 @@
 from pathlib import Path
 
+import numpy as np
+
 from . import fastar_loader as _rust  # type: ignore
 
 
@@ -10,7 +12,7 @@ def read_sequence(
     length: int,
     gzi_path: str | Path | None = None,
     fai_path: str | Path | None = None,
-) -> bytes:
+) -> np.ndarray:
     fasta_path = str(fasta_path)
     if gzi_path is None:
         gzi_path = f"{fasta_path}.gzi"
@@ -97,7 +99,7 @@ class TrackLoader:
     def names(self) -> list[str]:
         return self._index_map.names
 
-    def read_sequence(self, name: str, contig: str, start: int, length: int) -> list[float]:
+    def read_sequence(self, name: str, contig: str, start: int, length: int) -> np.ndarray:
         return self._index_map.read_sequence(name, contig.encode(), start, length)
 
     def to_shared_memory(self) -> None:

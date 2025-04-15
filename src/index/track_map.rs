@@ -3,6 +3,7 @@ use noodles::bgzf::{self, io::Seek, VirtualPosition};
 
 use anyhow::anyhow;
 use anyhow::Result;
+use numpy::ndarray::Array1;
 use rkyv::{Archive, Deserialize, Serialize};
 use std::io::Read;
 use std::{
@@ -69,7 +70,7 @@ pub trait TrackMapTrait {
         contig: &[u8],
         start: u64,
         length: u64,
-    ) -> Result<Vec<f32>> {
+    ) -> Result<Array1<f32>> {
         let (path, pos) = self.query(track_name, contig, start)?;
 
         let mut reader = bgzf::Reader::new(File::open(path)?);

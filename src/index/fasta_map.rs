@@ -7,6 +7,7 @@ use noodles::{
 
 use anyhow::anyhow;
 use anyhow::Result;
+use numpy::ndarray::Array1;
 use rkyv::{Archive, Deserialize, Serialize};
 use std::{
     collections::BTreeMap,
@@ -70,7 +71,7 @@ pub trait IndexMapTrait {
         contig: &[u8],
         start: u64,
         length: u64,
-    ) -> Result<Vec<u8>> {
+    ) -> Result<Array1<u8>> {
         let (path, pos) = self.query(fasta_name, contig, start)?;
 
         // Open FASTA sequence reader at correct offset
@@ -93,7 +94,7 @@ pub trait IndexMapTrait {
             buf.extend_from_slice(&src[..i]);
             sequence_reader.consume(i);
         }
-        Ok(buf)
+        Ok(buf.into())
     }
 }
 

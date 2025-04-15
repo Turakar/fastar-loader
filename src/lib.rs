@@ -7,19 +7,23 @@ use index::{FastaMap, IndexMapTrait, TrackMap, TrackMapTrait};
 use noodles::bgzf;
 use noodles::core::{Position, Region};
 use noodles::fasta;
+use numpy::ndarray::Array1;
+use numpy::{IntoPyArray, PyArray1};
 use pyo3::{exceptions::PyRuntimeError, prelude::*};
 use shmem::ShmemArchive;
 
 #[pyfunction]
-fn read_sequence(
+fn read_sequence<'py>(
+    py: Python<'py>,
     fasta_path: &str,
     gzi_path: &str,
     fai_path: &str,
     chromosome: &str,
     start: usize,
     length: usize,
-) -> PyResult<Vec<u8>> {
+) -> PyResult<Bound<'py, PyArray1<u8>>> {
     read_sequence_(fasta_path, gzi_path, fai_path, chromosome, start, length)
+        .map(|arr| arr.into_pyarray(py))
         .map_err(|e| PyRuntimeError::new_err(format!("{:?}", e)))
 }
 
@@ -30,7 +34,7 @@ fn read_sequence_(
     chromosome: &str,
     start: usize,
     length: usize,
-) -> Result<Vec<u8>> {
+) -> Result<Array1<u8>> {
     let bgzf_reader = bgzf::io::indexed_reader::Builder::default()
         .set_index(bgzf::gzi::read(gzi_path)?)
         .build_from_path(fasta_path)?;
@@ -42,7 +46,7 @@ fn read_sequence_(
     let region = Region::new(chromosome, start_pos..=end_pos);
     let record = fasta_reader.query(&region)?;
     let sequence = record.sequence().as_ref().to_vec();
-    Ok(sequence)
+    Ok(sequence.into())
 }
 
 #[pyclass(name = "FastaMap")]
@@ -63,15 +67,17 @@ impl PyFastaMap {
         Ok(self.map.names())
     }
 
-    fn read_sequence(
+    fn read_sequence<'py>(
         &self,
+        py: Python<'py>,
         fasta_name: &str,
         contig: &[u8],
         start: u64,
         length: u64,
-    ) -> PyResult<Vec<u8>> {
+    ) -> PyResult<Bound<'py, PyArray1<u8>>> {
         self.map
             .read_sequence(fasta_name, contig, start, length)
+            .map(|arr| arr.into_pyarray(py))
             .map_err(|e| PyRuntimeError::new_err(format!("{:?}", e)))
     }
 
@@ -107,16 +113,18 @@ impl PyShmemFastaMap {
         Ok(self.shmem.as_ref().names())
     }
 
-    fn read_sequence(
+    fn read_sequence<'py>(
         &self,
+        py: Python<'py>,
         fasta_name: &str,
         contig: &[u8],
         start: u64,
         length: u64,
-    ) -> PyResult<Vec<u8>> {
+    ) -> PyResult<Bound<'py, PyArray1<u8>>> {
         self.shmem
             .as_ref()
             .read_sequence(fasta_name, contig, start, length)
+            .map(|arr| arr.into_pyarray(py))
             .map_err(|e| PyRuntimeError::new_err(format!("{:?}", e)))
     }
 }
@@ -139,15 +147,17 @@ impl PyTrackMap {
         Ok(self.map.names())
     }
 
-    fn read_sequence(
+    fn read_sequence<'py>(
         &self,
+        py: Python<'py>,
         track_name: &str,
         contig: &[u8],
         start: u64,
         length: u64,
-    ) -> PyResult<Vec<f32>> {
+    ) -> PyResult<Bound<'py, PyArray1<f32>>> {
         self.map
             .read_sequence(track_name, contig, start, length)
+            .map(|arr| arr.into_pyarray(py))
             .map_err(|e| PyRuntimeError::new_err(format!("{:?}", e)))
     }
 
@@ -183,16 +193,18 @@ impl PyShmemTrackMap {
         Ok(self.shmem.as_ref().names())
     }
 
-    fn read_sequence(
+    fn read_sequence<'py>(
         &self,
+        py: Python<'py>,
         track_name: &str,
         contig: &[u8],
         start: u64,
         length: u64,
-    ) -> PyResult<Vec<f32>> {
+    ) -> PyResult<Bound<'py, PyArray1<f32>>> {
         self.shmem
             .as_ref()
             .read_sequence(track_name, contig, start, length)
+            .map(|arr| arr.into_pyarray(py))
             .map_err(|e| PyRuntimeError::new_err(format!("{:?}", e)))
     }
 }
