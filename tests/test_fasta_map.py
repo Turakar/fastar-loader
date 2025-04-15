@@ -1,3 +1,4 @@
+import multiprocessing
 import pickle
 from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
@@ -7,41 +8,39 @@ from fastar_loader import FastarLoader
 
 
 @pytest.fixture()
-def loader() -> FastarLoader:
-    loader = FastarLoader("test_data")
+def loader(assemblies_path: Path) -> FastarLoader:
+    loader = FastarLoader(assemblies_path)
     loader.index()
     return loader
 
 
-def test_names(loader: FastarLoader) -> None:
+def test_names(loader: FastarLoader, expected_names: list[str]) -> None:
     names = loader.names
-    assert len(names) == 3
-    assert "GCA_000146045.2" in names
-    assert "GCF_000182965.3" in names
-    assert "GCF_003013715.1" in names
+    assert len(names) == len(expected_names)
+    assert all(name in names for name in expected_names)
 
 
-def test_names_shmem(loader: FastarLoader) -> None:
+def test_names_shmem(loader: FastarLoader, expected_names: list[str]) -> None:
     loader.to_shared_memory()
     names = loader.names
-    assert len(names) == 3
-    assert "GCA_000146045.2" in names
-    assert "GCF_000182965.3" in names
-    assert "GCF_003013715.1" in names
+    assert len(names) == len(expected_names)
+    assert all(name in names for name in expected_names)
 
 
 def test_read_sequence(
-    loader: FastarLoader, test_data: tuple[Path, str, str, int, int, bytes]
+    loader: FastarLoader, fasta_test_data: tuple[Path, str, str, int, int, bytes]
 ) -> None:
-    _, name, contig, start, length, expected_sequence = test_data
+    _, name, contig, start, length, expected_sequence = fasta_test_data
     sequence = loader.read_sequence(name, contig, start, length)
     assert sequence == expected_sequence
 
 
-def test_pickle(loader: FastarLoader, test_data: tuple[Path, str, str, int, int, bytes]) -> None:
+def test_pickle(
+    loader: FastarLoader, fasta_test_data: tuple[Path, str, str, int, int, bytes]
+) -> None:
     loader.to_shared_memory()
 
-    _, name, contig, start, length, expected_sequence = test_data
+    _, name, contig, start, length, expected_sequence = fasta_test_data
     sequence = loader.read_sequence(name, contig, start, length)
     assert sequence == expected_sequence
 
@@ -53,15 +52,15 @@ def test_pickle(loader: FastarLoader, test_data: tuple[Path, str, str, int, int,
 
 
 def test_multiprocess(
-    loader: FastarLoader, test_data: tuple[Path, str, str, int, int, bytes]
+    loader: FastarLoader, fasta_test_data: tuple[Path, str, str, int, int, bytes]
 ) -> None:
     loader.to_shared_memory()
 
-    _, name, contig, start, length, expected_sequence = test_data
+    _, name, contig, start, length, expected_sequence = fasta_test_data
     sequence = loader.read_sequence(name, contig, start, length)
     assert sequence == expected_sequence
 
-    with ProcessPoolExecutor() as executor:
+    with ProcessPoolExecutor(mp_context=multiprocessing.get_context("spawn")) as executor:
         future = executor.submit(loader.read_sequence, name, contig, start, length)
         sequence = future.result()
 

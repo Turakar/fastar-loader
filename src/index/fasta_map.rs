@@ -149,7 +149,7 @@ mod tests {
 
     #[test]
     fn test_archive() {
-        let data = FastaMap::build("test_data").unwrap();
+        let data = FastaMap::build("test-data/assemblies").unwrap();
         let bytes: rkyv::util::AlignedVec = rkyv::to_bytes::<rkyv::rancor::Error>(&data).unwrap();
         println!("Data pointer: {:#x}", &bytes.as_ptr().addr());
         let archive =

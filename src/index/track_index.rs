@@ -59,7 +59,7 @@ impl TrackIndexTrait for TrackIndex {
             None => false,
         });
         match i {
-            Some(entry) => Ok(entry.offset + start * (std::mem::size_of::<f32>() as u64)),
+            Some(entry) => Ok(entry.offset + start),
             None => Err(anyhow::anyhow!(
                 "Track not found: {}",
                 String::from_utf8_lossy(name)
@@ -75,9 +75,7 @@ impl TrackIndexTrait for ArchivedTrackIndex {
             ArchivedOption::None => false,
         });
         match i {
-            Some(entry) => {
-                Ok(u64::from(entry.offset) + start * (std::mem::size_of::<f32>() as u64))
-            }
+            Some(entry) => Ok(u64::from(entry.offset) + start),
             None => Err(anyhow::anyhow!(
                 "Track not found: {}",
                 String::from_utf8_lossy(name)

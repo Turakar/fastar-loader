@@ -42,7 +42,7 @@ impl TrackMap {
                 .ok_or_else(|| anyhow!("Invalid file name"))?
                 .to_string();
             let gzi = BgzfIndex::read(with_suffix(track_path.clone(), ".gzi"))?;
-            let track_index = TrackIndex::read(with_suffix(track_path.clone(), ".fai"))?;
+            let track_index = TrackIndex::read(with_suffix(track_path.clone(), ".idx"))?;
             let entry = Index { gzi, track_index };
             map.insert(track_name, entry);
         }
@@ -107,8 +107,9 @@ impl TrackMapTrait for TrackMap {
             .get(track_name)
             .ok_or(anyhow::anyhow!("Fasta name not found"))?;
         let pos = entry.track_index.query(contig, start)?;
-        let offset = entry.gzi.query(pos)?;
-        let path = Path::new(self.dir.as_str()).join(format!("{}.fna.gz", track_name));
+        let f32_size = std::mem::size_of::<f32>() as u64;
+        let offset = entry.gzi.query(pos * f32_size)?;
+        let path = Path::new(self.dir.as_str()).join(format!("{}.track.gz", track_name));
         Ok((path, offset))
     }
 }
@@ -130,8 +131,24 @@ impl TrackMapTrait for ArchivedTrackMap {
             .get(track_name)
             .ok_or(anyhow::anyhow!("Name not found"))?;
         let pos = entry.track_index.query(contig, start)?;
-        let offset = entry.gzi.query(pos)?;
-        let path = Path::new(self.dir.as_str()).join(format!("{}.fna.gz", track_name));
+        let f32_size = std::mem::size_of::<f32>() as u64;
+        let offset = entry.gzi.query(pos * f32_size)?;
+        let path = Path::new(self.dir.as_str()).join(format!("{}.track.gz", track_name));
         Ok((path, offset))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_archive() {
+        let data = TrackMap::build("test-data/tracks").unwrap();
+        let bytes: rkyv::util::AlignedVec = rkyv::to_bytes::<rkyv::rancor::Error>(&data).unwrap();
+        println!("Data pointer: {:#x}", &bytes.as_ptr().addr());
+        let archive =
+            rkyv::access::<ArchivedTrackMap, rkyv::rancor::Error>(bytes.as_ref()).unwrap();
+        assert_eq!(archive.names(), data.names());
     }
 }
