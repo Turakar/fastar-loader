@@ -15,6 +15,7 @@ dev = [
     "polars>=1.27.1",
     "pre-commit>=4.2.0",
     "pyfaidx>=0.8.1.3",
+    "pyright>=1.1.399",
     "pytest>=8.3.5",
 ]
 
@@ -38,4 +39,4 @@ extend-include = ["*.ipynb"]
 extend-select = ["I"]
 
 [tool.pyright]
-include = ["src/python"]
+include = ["python/fastar_loader", "tests"]
