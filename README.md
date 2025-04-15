@@ -23,8 +23,6 @@ $ samtools faidx XXX.fna
 
 Where `bgzip`is from HTSlib and `samtools` from SAMtools.
 
-**Warning:** The BGZF files produced by BioPython's bgzf module seem to be incompatible with the newest noodles version this library uses ([issue](https://github.com/zaeleus/noodles/issues/336)).
-
 
 ## Example
 ```python
