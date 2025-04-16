@@ -67,6 +67,12 @@ impl PyFastaMap {
         Ok(self.map.names())
     }
 
+    fn contigs(&self, fasta_name: &str) -> PyResult<Vec<(&[u8], u64)>> {
+        self.map
+            .contigs(fasta_name)
+            .map_err(|e| PyRuntimeError::new_err(format!("Error getting contigs: {:?}", e)))
+    }
+
     fn read_sequence<'py>(
         &self,
         py: Python<'py>,
@@ -113,6 +119,13 @@ impl PyShmemFastaMap {
         Ok(self.shmem.as_ref().names())
     }
 
+    fn contigs(&self, fasta_name: &str) -> PyResult<Vec<(&[u8], u64)>> {
+        self.shmem
+            .as_ref()
+            .contigs(fasta_name)
+            .map_err(|e| PyRuntimeError::new_err(format!("Error getting contigs: {:?}", e)))
+    }
+
     fn read_sequence<'py>(
         &self,
         py: Python<'py>,
@@ -145,6 +158,12 @@ impl PyTrackMap {
     #[getter]
     fn names(&self) -> PyResult<Vec<&str>> {
         Ok(self.map.names())
+    }
+
+    fn contigs(&self, fasta_name: &str) -> PyResult<Vec<(&[u8], u64)>> {
+        self.map
+            .contigs(fasta_name)
+            .map_err(|e| PyRuntimeError::new_err(format!("Error getting contigs: {:?}", e)))
     }
 
     fn read_sequence<'py>(
@@ -191,6 +210,13 @@ impl PyShmemTrackMap {
     #[getter]
     fn names(&self) -> PyResult<Vec<&str>> {
         Ok(self.shmem.as_ref().names())
+    }
+
+    fn contigs(&self, fasta_name: &str) -> PyResult<Vec<(&[u8], u64)>> {
+        self.shmem
+            .as_ref()
+            .contigs(fasta_name)
+            .map_err(|e| PyRuntimeError::new_err(format!("Error getting contigs: {:?}", e)))
     }
 
     fn read_sequence<'py>(

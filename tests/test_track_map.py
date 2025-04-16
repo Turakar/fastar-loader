@@ -29,6 +29,19 @@ def test_names_shmem(loader: TrackLoader, expected_names: list[str]) -> None:
     assert all(name in names for name in expected_names)
 
 
+def test_structure(loader: TrackLoader, track_structure: dict[str, list[tuple[str, int]]]) -> None:
+    for name, contigs in track_structure.items():
+        assert loader.contigs(name) == contigs
+
+
+def test_structure_shmem(
+    loader: TrackLoader, track_structure: dict[str, list[tuple[str, int]]]
+) -> None:
+    loader.to_shared_memory()
+    for name, contigs in track_structure.items():
+        assert loader.contigs(name) == contigs
+
+
 def test_read_sequence(
     loader: TrackLoader, track_test_data: tuple[Path, str, str, int, int, np.ndarray]
 ) -> None:

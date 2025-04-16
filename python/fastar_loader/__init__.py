@@ -47,6 +47,11 @@ class FastarLoader:
     def names(self) -> list[str]:
         return self._index_map.names
 
+    def contigs(self, name: str) -> list[tuple[str, int]]:
+        return [
+            (contig.decode("utf-8"), length) for contig, length in self._index_map.contigs(name)
+        ]
+
     def read_sequence(self, name: str, contig: str, start: int, length: int) -> bytes:
         return self._index_map.read_sequence(name, contig.encode(), start, length)
 
@@ -98,6 +103,11 @@ class TrackLoader:
     @property
     def names(self) -> list[str]:
         return self._index_map.names
+
+    def contigs(self, name: str) -> list[tuple[str, int]]:
+        return [
+            (contig.decode("utf-8"), length) for contig, length in self._index_map.contigs(name)
+        ]
 
     def read_sequence(self, name: str, contig: str, start: int, length: int) -> np.ndarray:
         return self._index_map.read_sequence(name, contig.encode(), start, length)

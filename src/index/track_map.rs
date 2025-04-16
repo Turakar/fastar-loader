@@ -57,6 +57,8 @@ impl TrackMap {
 pub trait TrackMapTrait {
     fn names(&self) -> Vec<&str>;
 
+    fn contigs(&self, track_name: &str) -> Result<Vec<(&[u8], u64)>>;
+
     fn query(
         &self,
         track_name: &str,
@@ -96,6 +98,14 @@ impl TrackMapTrait for TrackMap {
         self.map.keys().map(|s| s.as_str()).collect()
     }
 
+    fn contigs(&self, track_name: &str) -> Result<Vec<(&[u8], u64)>> {
+        let entry = self
+            .map
+            .get(track_name)
+            .ok_or(anyhow::anyhow!("Track name not found"))?;
+        Ok(entry.track_index.contigs())
+    }
+
     fn query(
         &self,
         track_name: &str,
@@ -118,6 +128,14 @@ impl TrackMapTrait for TrackMap {
 impl TrackMapTrait for ArchivedTrackMap {
     fn names(&self) -> Vec<&str> {
         self.map.keys().map(|s| s.as_str()).collect()
+    }
+
+    fn contigs(&self, track_name: &str) -> Result<Vec<(&[u8], u64)>> {
+        let entry = self
+            .map
+            .get(track_name)
+            .ok_or(anyhow::anyhow!("Track name not found"))?;
+        Ok(entry.track_index.contigs())
     }
 
     fn query(

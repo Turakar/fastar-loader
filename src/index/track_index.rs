@@ -49,10 +49,21 @@ impl TrackIndex {
 }
 
 pub(super) trait TrackIndexTrait {
+    fn contigs(&self) -> Vec<(&[u8], u64)>;
     fn query(&self, name: &[u8], start: u64) -> Result<u64>;
 }
 
 impl TrackIndexTrait for TrackIndex {
+    fn contigs(&self) -> Vec<(&[u8], u64)> {
+        self.entries
+            .windows(2)
+            .filter_map(|pair| match &pair[0].name {
+                Some(name) => Some((name.as_slice(), pair[1].offset - pair[0].offset)),
+                _ => unreachable!(),
+            })
+            .collect()
+    }
+
     fn query(&self, name: &[u8], start: u64) -> Result<u64> {
         let i = self.entries.iter().find(|r| match &r.name {
             Some(entry_name) => entry_name == name,
@@ -69,6 +80,18 @@ impl TrackIndexTrait for TrackIndex {
 }
 
 impl TrackIndexTrait for ArchivedTrackIndex {
+    fn contigs(&self) -> Vec<(&[u8], u64)> {
+        self.entries
+            .windows(2)
+            .filter_map(|pair| match &pair[0].name {
+                ArchivedOption::Some(name) => {
+                    Some((name.as_slice(), pair[1].offset - pair[0].offset))
+                }
+                _ => unreachable!(),
+            })
+            .collect()
+    }
+
     fn query(&self, name: &[u8], start: u64) -> Result<u64> {
         let i = self.entries.iter().find(|r| match &r.name {
             ArchivedOption::Some(entry_name) => entry_name == name,

@@ -43,10 +43,18 @@ impl From<&NoodlesIndex> for FastaIndex {
 }
 
 pub(super) trait FastaIndexTrait {
+    fn contigs(&self) -> Vec<(&[u8], u64)>;
     fn query(&self, contig: &[u8], start: u64) -> Result<u64>;
 }
 
 impl FastaIndexTrait for FastaIndex {
+    fn contigs(&self) -> Vec<(&[u8], u64)> {
+        self.entries
+            .iter()
+            .map(|record| (record.contig.as_slice(), record.length))
+            .collect()
+    }
+
     fn query(&self, contig: &[u8], start: u64) -> Result<u64> {
         self.entries
             .iter()
@@ -61,6 +69,13 @@ impl FastaIndexTrait for FastaIndex {
 }
 
 impl FastaIndexTrait for ArchivedFastaIndex {
+    fn contigs(&self) -> Vec<(&[u8], u64)> {
+        self.entries
+            .iter()
+            .map(|record| (record.contig.as_ref(), u64::from(record.length)))
+            .collect()
+    }
+
     fn query(&self, contig: &[u8], start: u64) -> Result<u64> {
         self.entries
             .iter()

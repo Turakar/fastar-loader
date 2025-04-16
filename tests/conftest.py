@@ -77,6 +77,23 @@ def fasta_test_data(
     )
 
 
+@pytest.fixture(scope="session")
+def fasta_structure(assemblies_path: Path) -> dict[str, list[tuple[str, int]]]:
+    fasta_structure = {}
+    for path in assemblies_path.glob("*.fna.gz.fai"):
+        name = path.name.strip(".fna.gz.fai")
+        index = pl.read_csv(
+            path,
+            separator="\t",
+            has_header=False,
+            new_columns=["contig", "length", "offset", "line_bases", "line_width"],
+        )
+        fasta_structure[name] = [
+            (row["contig"], row["length"]) for row in index.iter_rows(named=True)
+        ]
+    return fasta_structure
+
+
 @pytest.fixture(
     params=_TEST_REGIONS,
     scope="session",
@@ -122,3 +139,21 @@ def track_test_data(
         length,
         data,
     )
+
+
+@pytest.fixture(scope="session")
+def track_structure(tracks_path: Path) -> dict[str, list[tuple[str, int]]]:
+    track_structure = {}
+    for path in tracks_path.glob("*.track.gz.idx"):
+        name = path.name.strip(".track.gz.idx")
+        index = pl.read_csv(
+            path,
+            separator="\t",
+            has_header=False,
+            new_columns=["contig", "offset"],
+        )
+        track_structure[name] = [
+            (index["contig"][i], index["offset"][i + 1] - index["offset"][i])
+            for i in range(len(index) - 1)
+        ]
+    return track_structure

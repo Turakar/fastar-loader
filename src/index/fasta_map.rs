@@ -58,6 +58,8 @@ impl FastaMap {
 pub trait IndexMapTrait {
     fn names(&self) -> Vec<&str>;
 
+    fn contigs(&self, name: &str) -> Result<Vec<(&[u8], u64)>>;
+
     fn query(
         &self,
         fasta_name: &str,
@@ -103,6 +105,14 @@ impl IndexMapTrait for FastaMap {
         self.map.keys().map(|s| s.as_str()).collect()
     }
 
+    fn contigs(&self, name: &str) -> Result<Vec<(&[u8], u64)>> {
+        let entry = self
+            .map
+            .get(name)
+            .ok_or(anyhow::anyhow!("Fasta name not found"))?;
+        Ok(entry.fai.contigs())
+    }
+
     fn query(
         &self,
         fasta_name: &str,
@@ -124,6 +134,14 @@ impl IndexMapTrait for FastaMap {
 impl IndexMapTrait for ArchivedFastaMap {
     fn names(&self) -> Vec<&str> {
         self.map.keys().map(|s| s.as_str()).collect()
+    }
+
+    fn contigs(&self, name: &str) -> Result<Vec<(&[u8], u64)>> {
+        let entry = self
+            .map
+            .get(name)
+            .ok_or(anyhow::anyhow!("Fasta name not found"))?;
+        Ok(entry.fai.contigs())
     }
 
     fn query(
