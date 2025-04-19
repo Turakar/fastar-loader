@@ -11,8 +11,7 @@ from numpy.testing import assert_array_equal
 
 @pytest.fixture()
 def loader(assemblies_path: Path) -> FastarLoader:
-    loader = FastarLoader(assemblies_path)
-    loader.index()
+    loader = FastarLoader(assemblies_path, no_cache=True)
     return loader
 
 
@@ -22,22 +21,7 @@ def test_names(loader: FastarLoader, expected_names: list[str]) -> None:
     assert all(name in names for name in expected_names)
 
 
-def test_names_shmem(loader: FastarLoader, expected_names: list[str]) -> None:
-    loader.to_shared_memory()
-    names = loader.names
-    assert len(names) == len(expected_names)
-    assert all(name in names for name in expected_names)
-
-
 def test_structure(loader: FastarLoader, fasta_structure: dict[str, list[tuple[str, int]]]) -> None:
-    for name, contigs in fasta_structure.items():
-        assert loader.contigs(name) == contigs
-
-
-def test_structure_shmem(
-    loader: FastarLoader, fasta_structure: dict[str, list[tuple[str, int]]]
-) -> None:
-    loader.to_shared_memory()
     for name, contigs in fasta_structure.items():
         assert loader.contigs(name) == contigs
 
@@ -53,8 +37,6 @@ def test_read_sequence(
 def test_pickle(
     loader: FastarLoader, fasta_test_data: tuple[Path, str, str, int, int, np.ndarray]
 ) -> None:
-    loader.to_shared_memory()
-
     _, name, contig, start, length, expected_sequence = fasta_test_data
     sequence = loader.read_sequence(name, contig, start, length)
     assert_array_equal(sequence, expected_sequence)
@@ -69,8 +51,6 @@ def test_pickle(
 def test_multiprocess(
     loader: FastarLoader, fasta_test_data: tuple[Path, str, str, int, int, np.ndarray]
 ) -> None:
-    loader.to_shared_memory()
-
     _, name, contig, start, length, expected_sequence = fasta_test_data
     sequence = loader.read_sequence(name, contig, start, length)
     assert_array_equal(sequence, expected_sequence)
@@ -83,14 +63,12 @@ def test_multiprocess(
 
 
 def test_cache(assemblies_path: Path) -> None:
-    ref = FastarLoader(assemblies_path)
-    ref.index(strict=False)
+    ref = FastarLoader(assemblies_path, no_cache=True)
 
     # Load without cache
     for p in assemblies_path.glob(".fasta-map-cache-*"):
         p.unlink()
     nocache = FastarLoader(assemblies_path)
-    nocache.load()
     assert len(list(assemblies_path.glob(".fasta-map-cache-*"))) == 1
     assert ref.names == nocache.names
     for name in ref.names:
@@ -98,7 +76,6 @@ def test_cache(assemblies_path: Path) -> None:
 
     # Load with cache
     cache = FastarLoader(assemblies_path)
-    cache.load()
     assert len(list(assemblies_path.glob(".fasta-map-cache-*"))) == 1
     assert ref.names == cache.names
     for name in ref.names:

@@ -37,27 +37,8 @@ impl From<&NoodlesIndex> for BgzfIndex {
     }
 }
 
-pub(super) trait BgzfIndexTrait {
-    fn query(&self, pos: u64) -> Result<VirtualPosition>;
-}
-
-impl BgzfIndexTrait for BgzfIndex {
-    fn query(&self, pos: u64) -> Result<VirtualPosition> {
-        let i = self.entries.partition_point(|r| r.uncompressed <= pos);
-        let (compressed, uncompressed) = match i {
-            0 => (0u64, 0u64),
-            i => {
-                let entry = &self.entries[i - 1];
-                (entry.compressed, entry.uncompressed)
-            }
-        };
-        let block_data_pos = u16::try_from(pos - uncompressed)?;
-        Ok(VirtualPosition::try_from((compressed, block_data_pos))?)
-    }
-}
-
-impl BgzfIndexTrait for ArchivedBgzfIndex {
-    fn query(&self, pos: u64) -> Result<VirtualPosition> {
+impl ArchivedBgzfIndex {
+    pub fn query(&self, pos: u64) -> Result<VirtualPosition> {
         let i = self.entries.partition_point(|r| r.uncompressed <= pos);
         let (compressed, uncompressed) = match i {
             0 => (0u64, 0u64),

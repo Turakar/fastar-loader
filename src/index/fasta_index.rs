@@ -42,41 +42,15 @@ impl From<&NoodlesIndex> for FastaIndex {
     }
 }
 
-pub(super) trait FastaIndexTrait {
-    fn contigs(&self) -> Vec<(&[u8], u64)>;
-    fn query(&self, contig: &[u8], start: u64) -> Result<u64>;
-}
-
-impl FastaIndexTrait for FastaIndex {
-    fn contigs(&self) -> Vec<(&[u8], u64)> {
-        self.entries
-            .iter()
-            .map(|record| (record.contig.as_slice(), record.length))
-            .collect()
-    }
-
-    fn query(&self, contig: &[u8], start: u64) -> Result<u64> {
-        self.entries
-            .iter()
-            .find(|record| record.contig.as_slice() == contig)
-            .ok_or(anyhow::anyhow!("Contig not found"))
-            .map(|record| {
-                record.offset
-                    + start / record.line_bases * record.line_width
-                    + start % record.line_bases
-            })
-    }
-}
-
-impl FastaIndexTrait for ArchivedFastaIndex {
-    fn contigs(&self) -> Vec<(&[u8], u64)> {
+impl ArchivedFastaIndex {
+    pub fn contigs(&self) -> Vec<(&[u8], u64)> {
         self.entries
             .iter()
             .map(|record| (record.contig.as_ref(), u64::from(record.length)))
             .collect()
     }
 
-    fn query(&self, contig: &[u8], start: u64) -> Result<u64> {
+    pub fn query(&self, contig: &[u8], start: u64) -> Result<u64> {
         self.entries
             .iter()
             .find(|record| record.contig.as_ref() == contig)

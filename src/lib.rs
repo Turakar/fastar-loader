@@ -4,7 +4,7 @@ mod shmem;
 mod util;
 
 use anyhow::Result;
-use index::{FastaMap, IndexMapTrait, TrackMap, TrackMapTrait};
+use index::{FastaMap, TrackMap};
 use noodles::bgzf;
 use noodles::core::{Position, Region};
 use noodles::fasta;
@@ -50,62 +50,23 @@ fn read_sequence_(
     Ok(sequence.into())
 }
 
-#[pyclass(name = "FastaMap")]
+#[pyclass(frozen, name = "FastaMap")]
 struct PyFastaMap {
-    map: FastaMap,
+    shmem: ShmemArchive<FastaMap>,
 }
 
 #[pymethods]
 impl PyFastaMap {
     #[staticmethod]
-    fn build(py: Python, dir: &str, strict: bool) -> PyResult<Self> {
-        py.allow_threads(|| FastaMap::build(dir, strict))
-            .map(|map| PyFastaMap { map })
-            .map_err(|e| PyRuntimeError::new_err(format!("{:?}", e)))
-    }
-
-    #[getter]
-    fn names(&self) -> PyResult<Vec<&str>> {
-        Ok(self.map.names())
-    }
-
-    fn contigs(&self, fasta_name: &str) -> PyResult<Vec<(&[u8], u64)>> {
-        self.map
-            .contigs(fasta_name)
-            .map_err(|e| PyRuntimeError::new_err(format!("Error getting contigs: {:?}", e)))
-    }
-
-    fn read_sequence<'py>(
-        &self,
-        py: Python<'py>,
-        fasta_name: &str,
-        contig: &[u8],
-        start: u64,
-        length: u64,
-    ) -> PyResult<Bound<'py, PyArray1<u8>>> {
-        py.allow_threads(|| self.map.read_sequence(fasta_name, contig, start, length))
-            .map(|arr| arr.into_pyarray(py))
-            .map_err(|e| PyRuntimeError::new_err(format!("{:?}", e)))
-    }
-
-    fn to_shared_memory(&self) -> PyResult<PyShmemFastaMap> {
-        ShmemArchive::new(&self.map)
-            .map(|shmem| PyShmemFastaMap { shmem })
-            .map_err(|e| PyRuntimeError::new_err(format!("{:?}", e)))
-    }
-}
-
-#[pyclass(frozen, name = "ShmemFastaMap")]
-struct PyShmemFastaMap {
-    shmem: ShmemArchive<FastaMap>,
-}
-
-#[pymethods]
-impl PyShmemFastaMap {
-    #[staticmethod]
-    fn load(py: Python, dir: &str, strict: bool, force_build: bool) -> PyResult<Self> {
-        py.allow_threads(|| cache::load_fasta_map(dir, strict, force_build))
-            .map(|shmem| PyShmemFastaMap { shmem })
+    fn load(
+        py: Python,
+        dir: &str,
+        strict: bool,
+        force_build: bool,
+        no_cache: bool,
+    ) -> PyResult<Self> {
+        py.allow_threads(|| cache::load_fasta_map(dir, strict, force_build, no_cache))
+            .map(|shmem| PyFastaMap { shmem })
             .map_err(|e| PyRuntimeError::new_err(format!("{:?}", e)))
     }
 
@@ -118,7 +79,7 @@ impl PyShmemFastaMap {
     #[staticmethod]
     fn from_handle(handle: &str) -> PyResult<Self> {
         ShmemArchive::from_os_id(handle)
-            .map(|shmem| PyShmemFastaMap { shmem })
+            .map(|shmem| PyFastaMap { shmem })
             .map_err(|e| PyRuntimeError::new_err(format!("{:?}", e)))
     }
 
@@ -152,62 +113,23 @@ impl PyShmemFastaMap {
     }
 }
 
-#[pyclass(name = "TrackMap")]
+#[pyclass(frozen, name = "TrackMap")]
 struct PyTrackMap {
-    map: TrackMap,
+    shmem: ShmemArchive<TrackMap>,
 }
 
 #[pymethods]
 impl PyTrackMap {
     #[staticmethod]
-    fn build(py: Python, dir: &str, strict: bool) -> PyResult<Self> {
-        py.allow_threads(|| TrackMap::build(dir, strict))
-            .map(|map| PyTrackMap { map })
-            .map_err(|e| PyRuntimeError::new_err(format!("{:?}", e)))
-    }
-
-    #[getter]
-    fn names(&self) -> PyResult<Vec<&str>> {
-        Ok(self.map.names())
-    }
-
-    fn contigs(&self, fasta_name: &str) -> PyResult<Vec<(&[u8], u64)>> {
-        self.map
-            .contigs(fasta_name)
-            .map_err(|e| PyRuntimeError::new_err(format!("Error getting contigs: {:?}", e)))
-    }
-
-    fn read_sequence<'py>(
-        &self,
-        py: Python<'py>,
-        track_name: &str,
-        contig: &[u8],
-        start: u64,
-        length: u64,
-    ) -> PyResult<Bound<'py, PyArray1<f32>>> {
-        py.allow_threads(|| self.map.read_sequence(track_name, contig, start, length))
-            .map(|arr| arr.into_pyarray(py))
-            .map_err(|e| PyRuntimeError::new_err(format!("{:?}", e)))
-    }
-
-    fn to_shared_memory(&self) -> PyResult<PyShmemTrackMap> {
-        ShmemArchive::new(&self.map)
-            .map(|shmem| PyShmemTrackMap { shmem })
-            .map_err(|e| PyRuntimeError::new_err(format!("{:?}", e)))
-    }
-}
-
-#[pyclass(frozen, name = "ShmemTrackMap")]
-struct PyShmemTrackMap {
-    shmem: ShmemArchive<TrackMap>,
-}
-
-#[pymethods]
-impl PyShmemTrackMap {
-    #[staticmethod]
-    fn load(py: Python, dir: &str, strict: bool, force_build: bool) -> PyResult<Self> {
-        py.allow_threads(|| cache::load_track_map(dir, strict, force_build))
-            .map(|shmem| PyShmemTrackMap { shmem })
+    fn load(
+        py: Python,
+        dir: &str,
+        strict: bool,
+        force_build: bool,
+        no_cache: bool,
+    ) -> PyResult<Self> {
+        py.allow_threads(|| cache::load_track_map(dir, strict, force_build, no_cache))
+            .map(|shmem| PyTrackMap { shmem })
             .map_err(|e| PyRuntimeError::new_err(format!("{:?}", e)))
     }
 
@@ -220,7 +142,7 @@ impl PyShmemTrackMap {
     #[staticmethod]
     fn from_handle(handle: &str) -> PyResult<Self> {
         ShmemArchive::from_os_id(handle)
-            .map(|shmem| PyShmemTrackMap { shmem })
+            .map(|shmem| PyTrackMap { shmem })
             .map_err(|e| PyRuntimeError::new_err(format!("{:?}", e)))
     }
 
@@ -258,8 +180,6 @@ impl PyShmemTrackMap {
 fn fastar_loader(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_wrapped(wrap_pyfunction!(read_sequence))?;
     m.add_class::<PyFastaMap>()?;
-    m.add_class::<PyShmemFastaMap>()?;
     m.add_class::<PyTrackMap>()?;
-    m.add_class::<PyShmemTrackMap>()?;
     Ok(())
 }

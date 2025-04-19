@@ -11,7 +11,13 @@ pub fn load_fasta_map(
     dir: &str,
     strict: bool,
     force_build: bool,
+    no_cache: bool,
 ) -> Result<ShmemArchive<FastaMap>> {
+    if no_cache {
+        let fasta_map = FastaMap::build(dir, strict)?;
+        let archive = ShmemArchive::new(&fasta_map)?;
+        return Ok(archive);
+    }
     let cache_path = Path::new(dir).join(format!(
         ".fasta-map-cache-{}",
         hash_dir(dir, strict, ".track.gz")?
@@ -38,7 +44,13 @@ pub fn load_track_map(
     dir: &str,
     strict: bool,
     force_build: bool,
+    no_cache: bool,
 ) -> Result<ShmemArchive<TrackMap>> {
+    if no_cache {
+        let track_map = TrackMap::build(dir, strict)?;
+        let archive = ShmemArchive::new(&track_map)?;
+        return Ok(archive);
+    }
     let cache_path = Path::new(dir).join(format!(
         ".track-map-cache-{}",
         hash_dir(dir, strict, ".fna.gz")?

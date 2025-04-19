@@ -1,5 +1,5 @@
-use crate::index::bgzf_index::{BgzfIndex, BgzfIndexTrait};
-use crate::index::fasta_index::{FastaIndex, FastaIndexTrait};
+use crate::index::bgzf_index::BgzfIndex;
+use crate::index::fasta_index::FastaIndex;
 use noodles::{
     bgzf::{self, io::Seek, VirtualPosition},
     fasta,
@@ -69,19 +69,37 @@ impl FastaMap {
     }
 }
 
-pub trait IndexMapTrait {
-    fn names(&self) -> Vec<&str>;
+impl ArchivedFastaMap {
+    pub fn names(&self) -> Vec<&str> {
+        self.map.keys().map(|s| s.as_str()).collect()
+    }
 
-    fn contigs(&self, name: &str) -> Result<Vec<(&[u8], u64)>>;
+    pub fn contigs(&self, name: &str) -> Result<Vec<(&[u8], u64)>> {
+        let entry = self
+            .map
+            .get(name)
+            .ok_or(anyhow::anyhow!("Fasta name not found"))?;
+        Ok(entry.fai.contigs())
+    }
 
-    fn query(
+    pub fn query(
         &self,
         fasta_name: &str,
         contig: &[u8],
         start: u64,
-    ) -> Result<(PathBuf, VirtualPosition)>;
+    ) -> Result<(PathBuf, VirtualPosition)> {
+        // Search in index
+        let entry = self
+            .map
+            .get(fasta_name)
+            .ok_or(anyhow::anyhow!("Fasta name not found"))?;
+        let pos = entry.fai.query(contig, start)?;
+        let offset = entry.gzi.query(pos)?;
+        let path = Path::new(self.dir.as_ref()).join(format!("{}.fna.gz", fasta_name));
+        Ok((path, offset))
+    }
 
-    fn read_sequence(
+    pub fn read_sequence(
         &self,
         fasta_name: &str,
         contig: &[u8],
@@ -111,82 +129,5 @@ pub trait IndexMapTrait {
             sequence_reader.consume(i);
         }
         Ok(buf.into())
-    }
-}
-
-impl IndexMapTrait for FastaMap {
-    fn names(&self) -> Vec<&str> {
-        self.map.keys().map(|s| s.as_str()).collect()
-    }
-
-    fn contigs(&self, name: &str) -> Result<Vec<(&[u8], u64)>> {
-        let entry = self
-            .map
-            .get(name)
-            .ok_or(anyhow::anyhow!("Fasta name not found"))?;
-        Ok(entry.fai.contigs())
-    }
-
-    fn query(
-        &self,
-        fasta_name: &str,
-        contig: &[u8],
-        start: u64,
-    ) -> Result<(PathBuf, VirtualPosition)> {
-        // Search in index
-        let entry = self
-            .map
-            .get(fasta_name)
-            .ok_or(anyhow::anyhow!("Fasta name not found"))?;
-        let pos = entry.fai.query(contig, start)?;
-        let offset = entry.gzi.query(pos)?;
-        let path = Path::new(self.dir.as_str()).join(format!("{}.fna.gz", fasta_name));
-        Ok((path, offset))
-    }
-}
-
-impl IndexMapTrait for ArchivedFastaMap {
-    fn names(&self) -> Vec<&str> {
-        self.map.keys().map(|s| s.as_str()).collect()
-    }
-
-    fn contigs(&self, name: &str) -> Result<Vec<(&[u8], u64)>> {
-        let entry = self
-            .map
-            .get(name)
-            .ok_or(anyhow::anyhow!("Fasta name not found"))?;
-        Ok(entry.fai.contigs())
-    }
-
-    fn query(
-        &self,
-        fasta_name: &str,
-        contig: &[u8],
-        start: u64,
-    ) -> Result<(PathBuf, VirtualPosition)> {
-        // Search in index
-        let entry = self
-            .map
-            .get(fasta_name)
-            .ok_or(anyhow::anyhow!("Fasta name not found"))?;
-        let pos = entry.fai.query(contig, start)?;
-        let offset = entry.gzi.query(pos)?;
-        let path = Path::new(self.dir.as_ref()).join(format!("{}.fna.gz", fasta_name));
-        Ok((path, offset))
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_archive() {
-        let data = FastaMap::build("test-data/assemblies", true).unwrap();
-        let bytes: rkyv::util::AlignedVec = rkyv::to_bytes::<rkyv::rancor::Error>(&data).unwrap();
-        println!("Data pointer: {:#x}", &bytes.as_ptr().addr());
-        let archive =
-            rkyv::access::<ArchivedFastaMap, rkyv::rancor::Error>(bytes.as_ref()).unwrap();
-        assert_eq!(archive.names(), data.names());
     }
 }

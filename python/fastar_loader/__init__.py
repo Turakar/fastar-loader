@@ -26,25 +26,15 @@ def read_sequence(
 
 
 class FastarLoader:
-    def __init__(self, path: str | Path):
+    def __init__(
+        self,
+        path: str | Path,
+        strict: bool = True,
+        force_build: bool = False,
+        no_cache: bool = False,
+    ):
         self._path = str(path)
-        self._index_map_ = None
-
-    def index(self, strict: bool = True) -> None:
-        self._index_map_ = _rust.FastaMap.build(self._path, strict)
-
-    def load(self, strict: bool = True, force_build: bool = False) -> None:
-        self._index_map_ = _rust.ShmemFastaMap.load(self._path, strict, force_build)
-
-    @property
-    def _index_map(self) -> _rust.FastaMap:
-        if self._index_map_ is None:
-            raise ValueError("Index map not built. Call index() first.")
-        return self._index_map_
-
-    @property
-    def in_shared_memory(self) -> bool:
-        return isinstance(self._index_map_, _rust.ShmemFastaMap)
+        self._index_map = _rust.FastaMap.load(self._path, strict, force_build, no_cache)
 
     @property
     def names(self) -> list[str]:
@@ -58,53 +48,26 @@ class FastarLoader:
     def read_sequence(self, name: str, contig: str, start: int, length: int) -> bytes:
         return self._index_map.read_sequence(name, contig.encode(), start, length)
 
-    def to_shared_memory(self) -> None:
-        if self.in_shared_memory:
-            raise ValueError("Index map already in shared memory.")
-        self._index_map_ = self._index_map.to_shared_memory()
-
     def __getstate__(self) -> dict[str, object]:
-        if not self.in_shared_memory:
-            raise ValueError("Index map can only be pickled if it is in shared memory.")
         d = self.__dict__.copy()
-        d["_index_map_"] = self._index_map.handle
+        d["_index_map"] = self._index_map.handle
         return d
 
     def __setstate__(self, state: dict[str, object]) -> None:
-        if "_index_map_" in state:
-            state["_index_map_"] = _rust.ShmemFastaMap.from_handle(state["_index_map_"])
+        state["_index_map"] = _rust.FastaMap.from_handle(state["_index_map"])
         self.__dict__.update(state)
-
-    def __repr__(self):
-        if self._index_map_ is None:
-            state = "uninitialized"
-        elif self.in_shared_memory:
-            state = "shared_memory"
-        else:
-            state = "local_memory"
-        return f"FastarLoader(path={self._path}, state={state})"
 
 
 class TrackLoader:
-    def __init__(self, path: str | Path):
+    def __init__(
+        self,
+        path: str | Path,
+        strict: bool = True,
+        force_build: bool = False,
+        no_cache: bool = False,
+    ):
         self._path = str(path)
-        self._index_map_ = None
-
-    def index(self, strict: bool = True) -> None:
-        self._index_map_ = _rust.TrackMap.build(self._path, strict)
-
-    def load(self, strict: bool = True, force_build: bool = False) -> None:
-        self._index_map_ = _rust.ShmemTrackMap.load(self._path, strict, force_build)
-
-    @property
-    def _index_map(self) -> _rust.TrackMap:
-        if self._index_map_ is None:
-            raise ValueError("Index map not built. Call index() first.")
-        return self._index_map_
-
-    @property
-    def in_shared_memory(self) -> bool:
-        return isinstance(self._index_map_, _rust.ShmemTrackMap)
+        self._index_map = _rust.TrackMap.load(self._path, strict, force_build, no_cache)
 
     @property
     def names(self) -> list[str]:
@@ -118,28 +81,11 @@ class TrackLoader:
     def read_sequence(self, name: str, contig: str, start: int, length: int) -> np.ndarray:
         return self._index_map.read_sequence(name, contig.encode(), start, length)
 
-    def to_shared_memory(self) -> None:
-        if self.in_shared_memory:
-            raise ValueError("Index map already in shared memory.")
-        self._index_map_ = self._index_map.to_shared_memory()
-
     def __getstate__(self) -> dict[str, object]:
-        if not self.in_shared_memory:
-            raise ValueError("Index map can only be pickled if it is in shared memory.")
         d = self.__dict__.copy()
-        d["_index_map_"] = self._index_map.handle
+        d["_index_map"] = self._index_map.handle
         return d
 
     def __setstate__(self, state: dict[str, object]) -> None:
-        if "_index_map_" in state:
-            state["_index_map_"] = _rust.ShmemTrackMap.from_handle(state["_index_map_"])
+        state["_index_map"] = _rust.TrackMap.from_handle(state["_index_map"])
         self.__dict__.update(state)
-
-    def __repr__(self):
-        if self._index_map_ is None:
-            state = "uninitialized"
-        elif self.in_shared_memory:
-            state = "shared_memory"
-        else:
-            state = "local_memory"
-        return f"FastarLoader(path={self._path}, state={state})"

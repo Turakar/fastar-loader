@@ -1,4 +1,4 @@
-use crate::index::bgzf_index::{BgzfIndex, BgzfIndexTrait};
+use crate::index::bgzf_index::BgzfIndex;
 use crate::util::get_name_without_suffix;
 use anyhow::Context;
 use noodles::bgzf::{self, io::Seek, VirtualPosition};
@@ -16,7 +16,6 @@ use std::{
 use crate::util::with_suffix;
 
 use super::track_index::TrackIndex;
-use super::track_index::TrackIndexTrait;
 
 #[derive(Archive, Serialize, Deserialize, Debug, PartialEq, Clone)]
 struct Index {
@@ -68,19 +67,38 @@ impl TrackMap {
     }
 }
 
-pub trait TrackMapTrait {
-    fn names(&self) -> Vec<&str>;
+impl ArchivedTrackMap {
+    pub fn names(&self) -> Vec<&str> {
+        self.map.keys().map(|s| s.as_str()).collect()
+    }
 
-    fn contigs(&self, track_name: &str) -> Result<Vec<(&[u8], u64)>>;
+    pub fn contigs(&self, track_name: &str) -> Result<Vec<(&[u8], u64)>> {
+        let entry = self
+            .map
+            .get(track_name)
+            .ok_or(anyhow::anyhow!("Track name not found"))?;
+        Ok(entry.track_index.contigs())
+    }
 
-    fn query(
+    pub fn query(
         &self,
         track_name: &str,
         contig: &[u8],
         start: u64,
-    ) -> Result<(PathBuf, VirtualPosition)>;
+    ) -> Result<(PathBuf, VirtualPosition)> {
+        // Search in index
+        let entry = self
+            .map
+            .get(track_name)
+            .ok_or(anyhow::anyhow!("Name not found"))?;
+        let pos = entry.track_index.query(contig, start)?;
+        let f32_size = std::mem::size_of::<f32>() as u64;
+        let offset = entry.gzi.query(pos * f32_size)?;
+        let path = Path::new(self.dir.as_str()).join(format!("{}.track.gz", track_name));
+        Ok((path, offset))
+    }
 
-    fn read_sequence(
+    pub fn read_sequence(
         &self,
         track_name: &str,
         contig: &[u8],
@@ -104,84 +122,5 @@ pub trait TrackMapTrait {
             .collect();
 
         Ok(buffer)
-    }
-}
-
-impl TrackMapTrait for TrackMap {
-    fn names(&self) -> Vec<&str> {
-        self.map.keys().map(|s| s.as_str()).collect()
-    }
-
-    fn contigs(&self, track_name: &str) -> Result<Vec<(&[u8], u64)>> {
-        let entry = self
-            .map
-            .get(track_name)
-            .ok_or(anyhow::anyhow!("Track name not found"))?;
-        Ok(entry.track_index.contigs())
-    }
-
-    fn query(
-        &self,
-        track_name: &str,
-        contig: &[u8],
-        start: u64,
-    ) -> Result<(PathBuf, VirtualPosition)> {
-        // Search in index
-        let entry = self
-            .map
-            .get(track_name)
-            .ok_or(anyhow::anyhow!("Fasta name not found"))?;
-        let pos = entry.track_index.query(contig, start)?;
-        let f32_size = std::mem::size_of::<f32>() as u64;
-        let offset = entry.gzi.query(pos * f32_size)?;
-        let path = Path::new(self.dir.as_str()).join(format!("{}.track.gz", track_name));
-        Ok((path, offset))
-    }
-}
-
-impl TrackMapTrait for ArchivedTrackMap {
-    fn names(&self) -> Vec<&str> {
-        self.map.keys().map(|s| s.as_str()).collect()
-    }
-
-    fn contigs(&self, track_name: &str) -> Result<Vec<(&[u8], u64)>> {
-        let entry = self
-            .map
-            .get(track_name)
-            .ok_or(anyhow::anyhow!("Track name not found"))?;
-        Ok(entry.track_index.contigs())
-    }
-
-    fn query(
-        &self,
-        track_name: &str,
-        contig: &[u8],
-        start: u64,
-    ) -> Result<(PathBuf, VirtualPosition)> {
-        // Search in index
-        let entry = self
-            .map
-            .get(track_name)
-            .ok_or(anyhow::anyhow!("Name not found"))?;
-        let pos = entry.track_index.query(contig, start)?;
-        let f32_size = std::mem::size_of::<f32>() as u64;
-        let offset = entry.gzi.query(pos * f32_size)?;
-        let path = Path::new(self.dir.as_str()).join(format!("{}.track.gz", track_name));
-        Ok((path, offset))
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_archive() {
-        let data = TrackMap::build("test-data/tracks", true).unwrap();
-        let bytes: rkyv::util::AlignedVec = rkyv::to_bytes::<rkyv::rancor::Error>(&data).unwrap();
-        println!("Data pointer: {:#x}", &bytes.as_ptr().addr());
-        let archive =
-            rkyv::access::<ArchivedTrackMap, rkyv::rancor::Error>(bytes.as_ref()).unwrap();
-        assert_eq!(archive.names(), data.names());
     }
 }
