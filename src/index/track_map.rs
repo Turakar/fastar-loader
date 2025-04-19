@@ -1,7 +1,8 @@
 use crate::index::bgzf_index::{BgzfIndex, BgzfIndexTrait};
+use crate::util::get_name_without_suffix;
+use anyhow::Context;
 use noodles::bgzf::{self, io::Seek, VirtualPosition};
 
-use anyhow::anyhow;
 use anyhow::Result;
 use numpy::ndarray::Array1;
 use rkyv::{Archive, Deserialize, Serialize};
@@ -30,27 +31,40 @@ pub struct TrackMap {
 }
 
 impl TrackMap {
-    pub fn build(dir: &str) -> Result<Self> {
+    pub fn build(dir: &str, strict: bool) -> Result<Self> {
         let mut map = BTreeMap::new();
         for track_result in glob::glob(format!("{}/*.track.gz", dir).as_str())? {
             let track_path = track_result?;
-            let track_name = track_path
-                .file_name()
-                .ok_or_else(|| anyhow!("Invalid file name"))?
-                .to_str()
-                .ok_or_else(|| anyhow!("Invalid UTF-8 sequence"))?
-                .strip_suffix(".track.gz")
-                .ok_or_else(|| anyhow!("Invalid file name"))?
-                .to_string();
-            let gzi = BgzfIndex::read(with_suffix(track_path.clone(), ".gzi"))?;
-            let track_index = TrackIndex::read(with_suffix(track_path.clone(), ".idx"))?;
-            let entry = Index { gzi, track_index };
-            map.insert(track_name, entry);
+            match Self::index_path(&track_path) {
+                Ok((track_name, index)) => {
+                    map.insert(track_name, index);
+                }
+                Err(e) => {
+                    if strict {
+                        return Err(e);
+                    } else {
+                        eprintln!(
+                            "Error processing track: {}. Skipping. Error: {:?}",
+                            track_path.display(),
+                            e
+                        );
+                    }
+                }
+            }
         }
         Ok(TrackMap {
             map,
             dir: dir.to_string(),
         })
+    }
+
+    fn index_path(track_path: &Path) -> Result<(String, Index)> {
+        let track_name = get_name_without_suffix(track_path, ".track.gz")?;
+        let gzi = BgzfIndex::read(with_suffix(track_path.to_path_buf(), ".gzi"))
+            .context("Failed to read .gzi")?;
+        let track_index = TrackIndex::read(with_suffix(track_path.to_path_buf(), ".idx"))
+            .context("Failed to read .idx")?;
+        Ok((track_name, Index { gzi, track_index }))
     }
 }
 
@@ -163,7 +177,7 @@ mod tests {
 
     #[test]
     fn test_archive() {
-        let data = TrackMap::build("test-data/tracks").unwrap();
+        let data = TrackMap::build("test-data/tracks", true).unwrap();
         let bytes: rkyv::util::AlignedVec = rkyv::to_bytes::<rkyv::rancor::Error>(&data).unwrap();
         println!("Data pointer: {:#x}", &bytes.as_ptr().addr());
         let archive =

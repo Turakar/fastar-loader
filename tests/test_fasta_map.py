@@ -80,3 +80,30 @@ def test_multiprocess(
         sequence = future.result()
 
     assert_array_equal(sequence, expected_sequence)
+
+
+def test_cache(assemblies_path: Path) -> None:
+    ref = FastarLoader(assemblies_path)
+    ref.index(strict=False)
+
+    # Load without cache
+    for p in assemblies_path.glob(".fasta-map-cache-*"):
+        p.unlink()
+    nocache = FastarLoader(assemblies_path)
+    nocache.load()
+    assert len(list(assemblies_path.glob(".fasta-map-cache-*"))) == 1
+    assert ref.names == nocache.names
+    for name in ref.names:
+        assert ref.contigs(name) == nocache.contigs(name)
+
+    # Load with cache
+    cache = FastarLoader(assemblies_path)
+    cache.load()
+    assert len(list(assemblies_path.glob(".fasta-map-cache-*"))) == 1
+    assert ref.names == cache.names
+    for name in ref.names:
+        assert ref.contigs(name) == cache.contigs(name)
+
+    # Clean up cache
+    for p in assemblies_path.glob(".fasta-map-cache-*"):
+        p.unlink()

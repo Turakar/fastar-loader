@@ -80,3 +80,30 @@ def test_multiprocess(
         sequence = future.result()
 
     assert_array_equal(sequence, expected_sequence)
+
+
+def test_cache(assemblies_path: Path) -> None:
+    ref = TrackLoader(assemblies_path)
+    ref.index(strict=False)
+
+    # Load without cache
+    for p in assemblies_path.glob(".track-map-cache-*"):
+        p.unlink()
+    nocache = TrackLoader(assemblies_path)
+    nocache.load()
+    assert len(list(assemblies_path.glob(".track-map-cache-*"))) == 1
+    assert ref.names == nocache.names
+    for name in ref.names:
+        assert ref.contigs(name) == nocache.contigs(name)
+
+    # Load with cache
+    cache = TrackLoader(assemblies_path)
+    cache.load()
+    assert len(list(assemblies_path.glob(".track-map-cache-*"))) == 1
+    assert ref.names == cache.names
+    for name in ref.names:
+        assert ref.contigs(name) == cache.contigs(name)
+
+    # Clean up cache
+    for p in assemblies_path.glob(".track-map-cache-*"):
+        p.unlink()

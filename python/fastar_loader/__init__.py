@@ -30,8 +30,11 @@ class FastarLoader:
         self._path = str(path)
         self._index_map_ = None
 
-    def index(self) -> None:
-        self._index_map_ = _rust.FastaMap.build(self._path)
+    def index(self, strict: bool = True) -> None:
+        self._index_map_ = _rust.FastaMap.build(self._path, strict)
+
+    def load(self, strict: bool = True, force_build: bool = False) -> None:
+        self._index_map_ = _rust.ShmemFastaMap.load(self._path, strict, force_build)
 
     @property
     def _index_map(self) -> _rust.FastaMap:
@@ -87,8 +90,11 @@ class TrackLoader:
         self._path = str(path)
         self._index_map_ = None
 
-    def index(self) -> None:
-        self._index_map_ = _rust.TrackMap.build(self._path)
+    def index(self, strict: bool = True) -> None:
+        self._index_map_ = _rust.TrackMap.build(self._path, strict)
+
+    def load(self, strict: bool = True, force_build: bool = False) -> None:
+        self._index_map_ = _rust.ShmemTrackMap.load(self._path, strict, force_build)
 
     @property
     def _index_map(self) -> _rust.TrackMap:

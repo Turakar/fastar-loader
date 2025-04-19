@@ -5,8 +5,8 @@ use noodles::{
     fasta,
 };
 
-use anyhow::anyhow;
 use anyhow::Result;
+use anyhow::{anyhow, Context};
 use numpy::ndarray::Array1;
 use rkyv::{Archive, Deserialize, Serialize};
 use std::{
@@ -16,7 +16,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use crate::util::with_suffix;
+use crate::util::{get_name_without_suffix, with_suffix};
 
 #[derive(Archive, Serialize, Deserialize, Debug, PartialEq, Clone)]
 struct Index {
@@ -31,27 +31,41 @@ pub struct FastaMap {
 }
 
 impl FastaMap {
-    pub fn build(dir: &str) -> Result<Self> {
+    pub fn build(dir: &str, strict: bool) -> Result<Self> {
         let mut map = BTreeMap::new();
-        for fasta_result in glob::glob(format!("{}/*.fna.gz", dir).as_str())? {
-            let fasta_path = fasta_result?;
-            let fasta_name = fasta_path
-                .file_name()
-                .ok_or_else(|| anyhow!("Invalid file name"))?
-                .to_str()
-                .ok_or_else(|| anyhow!("Invalid UTF-8 sequence"))?
-                .strip_suffix(".fna.gz")
-                .ok_or_else(|| anyhow!("Invalid file name"))?
-                .to_string();
-            let gzi = BgzfIndex::read(with_suffix(fasta_path.clone(), ".gzi"))?;
-            let fai = FastaIndex::read(with_suffix(fasta_path.clone(), ".fai"))?;
-            let entry = Index { gzi, fai };
-            map.insert(fasta_name, entry);
+        for map_result in glob::glob(format!("{}/*.fna.gz", dir).as_str())? {
+            let map_path = map_result?;
+            match Self::index_path(&map_path) {
+                Ok((track_name, index)) => {
+                    map.insert(track_name, index);
+                }
+                Err(e) => {
+                    if strict {
+                        return Err(e)
+                            .context(format!("Error processing track! {}", map_path.display()));
+                    } else {
+                        eprintln!(
+                            "Error processing track: {}. Skipping. Error: {:?}",
+                            map_path.display(),
+                            e
+                        );
+                    }
+                }
+            }
         }
         Ok(FastaMap {
             map,
             dir: dir.to_string(),
         })
+    }
+
+    fn index_path(fasta_path: &Path) -> Result<(String, Index)> {
+        let fasta_name = get_name_without_suffix(fasta_path, ".fna.gz")?;
+        let gzi = BgzfIndex::read(with_suffix(fasta_path.to_path_buf(), ".gzi"))
+            .context("Failed to read .gzi")?;
+        let fai = FastaIndex::read(with_suffix(fasta_path.to_path_buf(), ".fai"))
+            .context("Failed to read .fai")?;
+        Ok((fasta_name, Index { gzi, fai }))
     }
 }
 
@@ -168,7 +182,7 @@ mod tests {
 
     #[test]
     fn test_archive() {
-        let data = FastaMap::build("test-data/assemblies").unwrap();
+        let data = FastaMap::build("test-data/assemblies", true).unwrap();
         let bytes: rkyv::util::AlignedVec = rkyv::to_bytes::<rkyv::rancor::Error>(&data).unwrap();
         println!("Data pointer: {:#x}", &bytes.as_ptr().addr());
         let archive =
