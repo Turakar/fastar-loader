@@ -64,23 +64,21 @@ def test_multiprocess(
 
 def test_cache(assemblies_path: Path) -> None:
     ref = FastarLoader(assemblies_path, no_cache=True)
+    cache_path = assemblies_path / ".fasta-map-cache"
 
     # Load without cache
-    for p in assemblies_path.glob(".fasta-map-cache-*"):
-        p.unlink()
+    cache_path.unlink(missing_ok=True)
     nocache = FastarLoader(assemblies_path)
-    assert len(list(assemblies_path.glob(".fasta-map-cache-*"))) == 1
+    assert cache_path.exists()
     assert ref.names == nocache.names
     for name in ref.names:
         assert ref.contigs(name) == nocache.contigs(name)
 
     # Load with cache
     cache = FastarLoader(assemblies_path)
-    assert len(list(assemblies_path.glob(".fasta-map-cache-*"))) == 1
     assert ref.names == cache.names
     for name in ref.names:
         assert ref.contigs(name) == cache.contigs(name)
 
     # Clean up cache
-    for p in assemblies_path.glob(".fasta-map-cache-*"):
-        p.unlink()
+    cache_path.unlink()

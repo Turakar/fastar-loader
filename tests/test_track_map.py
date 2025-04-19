@@ -62,25 +62,23 @@ def test_multiprocess(
     assert_array_equal(sequence, expected_sequence)
 
 
-def test_cache(assemblies_path: Path) -> None:
-    ref = TrackLoader(assemblies_path, no_cache=True)
+def test_cache(tracks_path: Path) -> None:
+    ref = TrackLoader(tracks_path, no_cache=True)
+    cache_path = tracks_path / ".track-map-cache"
 
     # Load without cache
-    for p in assemblies_path.glob(".track-map-cache-*"):
-        p.unlink()
-    nocache = TrackLoader(assemblies_path)
-    assert len(list(assemblies_path.glob(".track-map-cache-*"))) == 1
+    cache_path.unlink(missing_ok=True)
+    nocache = TrackLoader(tracks_path)
+    assert cache_path.exists()
     assert ref.names == nocache.names
     for name in ref.names:
         assert ref.contigs(name) == nocache.contigs(name)
 
     # Load with cache
-    cache = TrackLoader(assemblies_path)
-    assert len(list(assemblies_path.glob(".track-map-cache-*"))) == 1
+    cache = TrackLoader(tracks_path)
     assert ref.names == cache.names
     for name in ref.names:
         assert ref.contigs(name) == cache.contigs(name)
 
     # Clean up cache
-    for p in assemblies_path.glob(".track-map-cache-*"):
-        p.unlink()
+    cache_path.unlink()
