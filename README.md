@@ -28,11 +28,10 @@ Where `bgzip`is from HTSlib and `samtools` from SAMtools.
 ```python
 from fastar_loader import FastarLoader
 loader = FastarLoader("test_data")
-loader.index()
 loader.read_sequence(name="GCA_000146045.2.fna.gz", contig="BK006935.2", start=0, length=60)
 ```
 
-So far, the indices remained in local memory. To enable shared memory usage and thereby pickling and multiprocessing for `FastarLoader`, use `FastarLoader.to_shared_memory()` (in-place).
+After the first load, the indices are cached to disk in the same directory for faster loading.
 
 
 ## Development
