@@ -37,3 +37,6 @@ repos:
         language: system
         pass_filenames: false
         types: [rust]
+
+ci:
+  skip: [cargo-fmt, cargo-check, cargo-clippy]

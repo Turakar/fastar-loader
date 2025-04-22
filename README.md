@@ -21,7 +21,7 @@ $ bgzip XXX.fna
 $ samtools faidx XXX.fna
 ```
 
-Where `bgzip`is from HTSlib and `samtools` from SAMtools.
+Where `bgzip` is from HTSlib and `samtools` from SAMtools.
 
 
 ## Example
