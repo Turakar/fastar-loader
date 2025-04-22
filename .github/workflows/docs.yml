@@ -1,9 +1,10 @@
 name: docs
+permissions:
+  contents: write
 on:
   push:
     branches:
       - main
-
 jobs:
   docs:
     name: Docs
