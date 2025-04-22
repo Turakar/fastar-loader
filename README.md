@@ -1,5 +1,7 @@
 # fastar-loader
 
+![](https://github.com/Turakar/fastar-loader/workflows/docs/badge.svg)
+
 A faster loader for compressed FASTA files using indices in shared memory.
 
 If you want to read a part of a sequence from a compressed FASTA file, you typically want to use the blocked GZIP format (BGZF) with a `.gzi` BGZF index and a `.fai` FASTA index. This requires you to keep the indices in memory, which can become an issue if you do this in a multiprocessing environment, because you will have one copy of each index for each process (e.g., in a Torch DataLoader).
