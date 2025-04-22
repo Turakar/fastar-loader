@@ -17,6 +17,8 @@ dev = [
     "pyfaidx>=0.8.1.3",
     "pyright>=1.1.399",
     "pytest>=8.3.5",
+    "sphinx>=8.2.3",
+    "sphinx-rtd-theme>=3.0.2",
 ]
 
 [build-system]
