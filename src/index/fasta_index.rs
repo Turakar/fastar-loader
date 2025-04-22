@@ -19,7 +19,7 @@ pub(super) struct FastaIndex {
 }
 
 impl FastaIndex {
-    pub fn read<P: AsRef<Path>>(path: P) -> Result<Self> {
+    pub(super) fn read<P: AsRef<Path>>(path: P) -> Result<Self> {
         let index: NoodlesIndex = noodles::fasta::fai::read(path)?;
         Ok(FastaIndex::from(&index))
     }
@@ -43,14 +43,14 @@ impl From<&NoodlesIndex> for FastaIndex {
 }
 
 impl ArchivedFastaIndex {
-    pub fn contigs(&self) -> Vec<(&[u8], u64)> {
+    pub(super) fn contigs(&self) -> Vec<(&[u8], u64)> {
         self.entries
             .iter()
             .map(|record| (record.contig.as_ref(), u64::from(record.length)))
             .collect()
     }
 
-    pub fn query(&self, contig: &[u8], start: u64) -> Result<u64> {
+    pub(super) fn query(&self, contig: &[u8], start: u64) -> Result<u64> {
         self.entries
             .iter()
             .find(|record| record.contig.as_ref() == contig)

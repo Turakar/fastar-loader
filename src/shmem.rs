@@ -10,7 +10,7 @@ use std::io::{Read, Write};
 use std::marker::PhantomData;
 use std::{any::TypeId, hash::Hash};
 
-pub struct ShmemArchive<T> {
+pub(crate) struct ShmemArchive<T> {
     shmem: Shmem,
     phantom_t: PhantomData<T>,
 }
@@ -33,7 +33,7 @@ where
     >,
     T::Archived: 'static + Portable,
 {
-    pub fn new(data: &T) -> Result<Self> {
+    pub(crate) fn new(data: &T) -> Result<Self> {
         // We store an additional magic value at the beginning of the shared memory
         // to verify the data type during access.
         let magic_value = type_specific_magic::<T::Archived>();
@@ -65,7 +65,7 @@ where
         })
     }
 
-    pub fn as_ref(&self) -> &T::Archived {
+    pub(crate) fn as_ref(&self) -> &T::Archived {
         unsafe {
             // Skip the first page because it contains the magic value
             let bytes = std::slice::from_raw_parts(
@@ -76,11 +76,11 @@ where
         }
     }
 
-    pub fn get_os_id(&self) -> &str {
+    pub(crate) fn get_os_id(&self) -> &str {
         self.shmem.get_os_id()
     }
 
-    pub fn from_os_id(os_id: &str) -> Result<Self> {
+    pub(crate) fn from_os_id(os_id: &str) -> Result<Self> {
         // Map the shared memory using the OS ID
         let shmem = ShmemConf::new().os_id(os_id).open()?;
         let shmem_ptr = shmem.as_ptr();
@@ -98,7 +98,7 @@ where
         })
     }
 
-    pub fn write_to_file(&self, file: &File) -> Result<()> {
+    pub(crate) fn write_to_file(&self, file: &File) -> Result<()> {
         // Transmute to byte slice and compute checksum
         let bytes = unsafe {
             std::slice::from_raw_parts(
@@ -116,7 +116,7 @@ where
         Ok(())
     }
 
-    pub fn read_from_file(file: &File) -> Result<Self> {
+    pub(crate) fn read_from_file(file: &File) -> Result<Self> {
         let mut reader = std::io::BufReader::new(file);
 
         // Read and verify the magic value

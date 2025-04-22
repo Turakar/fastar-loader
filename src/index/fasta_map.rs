@@ -25,13 +25,13 @@ struct Index {
 }
 
 #[derive(Archive, Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub struct FastaMap {
+pub(crate) struct FastaMap {
     dir: String,
     map: BTreeMap<String, Index>,
 }
 
 impl FastaMap {
-    pub fn build(dir: &str, strict: bool) -> Result<Self> {
+    pub(crate) fn build(dir: &str, strict: bool) -> Result<Self> {
         let mut map = BTreeMap::new();
         for map_result in glob::glob(format!("{}/*.fna.gz", dir).as_str())? {
             let map_path = map_result?;
@@ -70,11 +70,11 @@ impl FastaMap {
 }
 
 impl ArchivedFastaMap {
-    pub fn names(&self) -> Vec<&str> {
+    pub(crate) fn names(&self) -> Vec<&str> {
         self.map.keys().map(|s| s.as_str()).collect()
     }
 
-    pub fn contigs(&self, name: &str) -> Result<Vec<(&[u8], u64)>> {
+    pub(crate) fn contigs(&self, name: &str) -> Result<Vec<(&[u8], u64)>> {
         let entry = self
             .map
             .get(name)
@@ -82,7 +82,7 @@ impl ArchivedFastaMap {
         Ok(entry.fai.contigs())
     }
 
-    pub fn query(
+    pub(crate) fn query(
         &self,
         fasta_name: &str,
         contig: &[u8],
@@ -99,7 +99,7 @@ impl ArchivedFastaMap {
         Ok((path, offset))
     }
 
-    pub fn read_sequence(
+    pub(crate) fn read_sequence(
         &self,
         fasta_name: &str,
         contig: &[u8],

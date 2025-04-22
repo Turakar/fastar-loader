@@ -17,7 +17,7 @@ pub(super) struct BgzfIndex {
 }
 
 impl BgzfIndex {
-    pub fn read<P: AsRef<Path>>(path: P) -> Result<Self> {
+    pub(super) fn read<P: AsRef<Path>>(path: P) -> Result<Self> {
         let index: NoodlesIndex = noodles::bgzf::gzi::read(path)?;
         Ok(BgzfIndex::from(&index))
     }
@@ -38,7 +38,7 @@ impl From<&NoodlesIndex> for BgzfIndex {
 }
 
 impl ArchivedBgzfIndex {
-    pub fn query(&self, pos: u64) -> Result<VirtualPosition> {
+    pub(super) fn query(&self, pos: u64) -> Result<VirtualPosition> {
         let i = self.entries.partition_point(|r| r.uncompressed <= pos);
         let (compressed, uncompressed) = match i {
             0 => (0u64, 0u64),

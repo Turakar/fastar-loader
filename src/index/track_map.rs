@@ -24,13 +24,13 @@ struct Index {
 }
 
 #[derive(Archive, Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub struct TrackMap {
+pub(crate) struct TrackMap {
     dir: String,
     map: BTreeMap<String, Index>,
 }
 
 impl TrackMap {
-    pub fn build(dir: &str, strict: bool) -> Result<Self> {
+    pub(crate) fn build(dir: &str, strict: bool) -> Result<Self> {
         let mut map = BTreeMap::new();
         for track_result in glob::glob(format!("{}/*.track.gz", dir).as_str())? {
             let track_path = track_result?;
@@ -68,11 +68,11 @@ impl TrackMap {
 }
 
 impl ArchivedTrackMap {
-    pub fn names(&self) -> Vec<&str> {
+    pub(crate) fn names(&self) -> Vec<&str> {
         self.map.keys().map(|s| s.as_str()).collect()
     }
 
-    pub fn contigs(&self, track_name: &str) -> Result<Vec<(&[u8], u64)>> {
+    pub(crate) fn contigs(&self, track_name: &str) -> Result<Vec<(&[u8], u64)>> {
         let entry = self
             .map
             .get(track_name)
@@ -80,7 +80,7 @@ impl ArchivedTrackMap {
         Ok(entry.track_index.contigs())
     }
 
-    pub fn query(
+    pub(crate) fn query(
         &self,
         track_name: &str,
         contig: &[u8],
@@ -98,7 +98,7 @@ impl ArchivedTrackMap {
         Ok((path, offset))
     }
 
-    pub fn read_sequence(
+    pub(crate) fn read_sequence(
         &self,
         track_name: &str,
         contig: &[u8],

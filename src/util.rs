@@ -1,13 +1,13 @@
 use anyhow::{anyhow, Result};
 use std::path::{Path, PathBuf};
 
-pub(super) fn with_suffix(p: PathBuf, s: &str) -> PathBuf {
+pub(crate) fn with_suffix(p: PathBuf, s: &str) -> PathBuf {
     let mut p = p.into_os_string();
     p.push(s);
     p.into()
 }
 
-pub(super) fn get_name_without_suffix(path: &Path, suffix: &str) -> Result<String> {
+pub(crate) fn get_name_without_suffix(path: &Path, suffix: &str) -> Result<String> {
     let name = path
         .file_name()
         .ok_or_else(|| anyhow!("No file name found"))?

@@ -19,7 +19,7 @@ pub(super) struct TrackIndex {
 }
 
 impl TrackIndex {
-    pub fn read<P: AsRef<Path>>(path: P) -> Result<Self> {
+    pub(super) fn read<P: AsRef<Path>>(path: P) -> Result<Self> {
         let file = File::open(path)?;
         let reader = BufReader::new(file);
         let mut entries = Vec::new();
@@ -49,7 +49,7 @@ impl TrackIndex {
 }
 
 impl ArchivedTrackIndex {
-    pub fn contigs(&self) -> Vec<(&[u8], u64)> {
+    pub(super) fn contigs(&self) -> Vec<(&[u8], u64)> {
         self.entries
             .windows(2)
             .filter_map(|pair| match &pair[0].name {
@@ -61,7 +61,7 @@ impl ArchivedTrackIndex {
             .collect()
     }
 
-    pub fn query(&self, name: &[u8], start: u64) -> Result<u64> {
+    pub(super) fn query(&self, name: &[u8], start: u64) -> Result<u64> {
         let i = self.entries.iter().find(|r| match &r.name {
             ArchivedOption::Some(entry_name) => entry_name == name,
             ArchivedOption::None => false,

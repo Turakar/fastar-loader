@@ -6,7 +6,7 @@ use crate::shmem::ShmemArchive;
 use crate::util::get_name_without_suffix;
 use anyhow::{bail, Result};
 
-pub fn load_fasta_map(
+pub(super) fn load_fasta_map(
     dir: &str,
     strict: bool,
     force_build: bool,
@@ -47,7 +47,7 @@ pub fn load_fasta_map(
     Ok(archive)
 }
 
-pub fn load_track_map(
+pub(super) fn load_track_map(
     dir: &str,
     strict: bool,
     force_build: bool,
