@@ -72,9 +72,33 @@
              
   <section id="fastar-loader-documentation">
 <h1>fastar-loader documentation<a class="headerlink" href="#fastar-loader-documentation" title="Link to this heading"></a></h1>
-<p>Add your content using <code class="docutils literal notranslate"><span class="pre">reStructuredText</span></code> syntax. See the
-<a class="reference external" href="https://www.sphinx-doc.org/en/master/usage/restructuredtext/index.html">reStructuredText</a>
-documentation for details.</p>
+<p>A faster loader for compressed FASTA files using indices in shared memory.</p>
+<p>If you want to read a part of a sequence from a compressed FASTA file, you typically want to use the blocked GZIP format (BGZF) with a <cite>.gzi</cite> BGZF index and a <cite>.fai</cite> FASTA index. This requires you to keep the indices in memory, which can become an issue if you do this in a multiprocessing environment, because you will have one copy of each index for each process (e.g., in a Torch DataLoader).</p>
+<p>To alleviate this, this library can transfer the indices to shared memory, allowing for usage of the indices from multiple processes while keeping only one copy of the indices in memory.</p>
+<section id="input">
+<h2>Input<a class="headerlink" href="#input" title="Link to this heading"></a></h2>
+<p>All files read by the index are expected to be in one directory and should follow the following naming scheme (where <cite>XXX</cite> is referred to as the name of a FASTA):</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">XXX.fna.gz</span></code>: The BGZF-compressed FASTA file</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">XXX.fna.gz.gzi</span></code>: The BGZF index</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">XXX.fna.gz.fai</span></code>: The FASTA index file (faidx).</p></li>
+</ul>
+<p>To create these files, you can use the following commands:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>$ bgzip XXX.fna
+$ samtools faidx XXX.fna
+</pre></div>
+</div>
+<p>Where <cite>bgzip</cite> is from HTSlib and <cite>samtools</cite> from SAMtools.</p>
+</section>
+<section id="example">
+<h2>Example<a class="headerlink" href="#example" title="Link to this heading"></a></h2>
+<p>Creating a loader and loading a certain region:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">fastar_loader</span><span class="w"> </span><span class="kn">import</span> <span class="n">FastarLoader</span>
+<span class="n">loader</span> <span class="o">=</span> <span class="n">FastarLoader</span><span class="p">(</span><span class="s2">&quot;test_data&quot;</span><span class="p">)</span>
+<span class="n">loader</span><span class="o">.</span><span class="n">read_sequence</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;GCA_000146045.2.fna.gz&quot;</span><span class="p">,</span> <span class="n">contig</span><span class="o">=</span><span class="s2">&quot;BK006935.2&quot;</span><span class="p">,</span> <span class="n">start</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">length</span><span class="o">=</span><span class="mi">60</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>After the first load, the indices are cached to disk in the same directory for faster loading.</p>
 <div class="toctree-wrapper compound">
 <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
 <ul>
@@ -84,6 +108,7 @@ documentation for details.</p>
 </li>
 </ul>
 </div>
+</section>
 </section>
 
 
