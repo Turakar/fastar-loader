@@ -30,11 +30,11 @@ pub(crate) struct TrackMap {
 }
 
 impl TrackMap {
-    pub(crate) fn build(dir: &str, strict: bool) -> Result<Self> {
+    pub(crate) fn build(dir: &str, strict: bool, min_contig_length: u64) -> Result<Self> {
         let mut map = BTreeMap::new();
         for track_result in glob::glob(format!("{}/*.track.gz", dir).as_str())? {
             let track_path = track_result?;
-            match Self::index_path(&track_path) {
+            match Self::index_path(&track_path, min_contig_length) {
                 Ok((track_name, index)) => {
                     map.insert(track_name, index);
                 }
@@ -57,12 +57,15 @@ impl TrackMap {
         })
     }
 
-    fn index_path(track_path: &Path) -> Result<(String, Index)> {
+    fn index_path(track_path: &Path, min_contig_length: u64) -> Result<(String, Index)> {
         let track_name = get_name_without_suffix(track_path, ".track.gz")?;
         let gzi = BgzfIndex::read(with_suffix(track_path.to_path_buf(), ".gzi"))
             .context("Failed to read .gzi")?;
-        let track_index = TrackIndex::read(with_suffix(track_path.to_path_buf(), ".idx"))
-            .context("Failed to read .idx")?;
+        let track_index = TrackIndex::read(
+            with_suffix(track_path.to_path_buf(), ".idx"),
+            min_contig_length,
+        )
+        .context("Failed to read .idx")?;
         Ok((track_name, Index { gzi, track_index }))
     }
 }

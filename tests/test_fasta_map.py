@@ -82,3 +82,19 @@ def test_cache(assemblies_path: Path) -> None:
 
     # Clean up cache
     cache_path.unlink()
+
+
+def test_min_contig_length(assemblies_path: Path, expected_names: list[str]) -> None:
+    min_length = 1_000_000
+    ref = FastarLoader(assemblies_path, no_cache=True)
+    restricted = FastarLoader(assemblies_path, min_contig_length=min_length, no_cache=True)
+    for name in expected_names:
+        ref_contigs = ref.contigs(name)
+        restricted_contigs = restricted.contigs(name)
+        for contig, length in ref_contigs:
+            if length >= min_length:
+                assert (contig, length) in restricted_contigs
+            else:
+                assert (contig, length) not in restricted_contigs
+        for contig, length in restricted_contigs:
+            assert (contig, length) in ref_contigs

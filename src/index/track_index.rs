@@ -5,12 +5,13 @@ use std::{
 };
 
 use anyhow::Result;
-use rkyv::{option::ArchivedOption, Archive, Deserialize, Serialize};
+use rkyv::{Archive, Deserialize, Serialize};
 
 #[derive(Archive, Serialize, Deserialize, Debug, PartialEq, Clone)]
 struct TrackIndexRecord {
-    name: Option<Vec<u8>>,
+    name: Vec<u8>,
     offset: u64,
+    length: u64,
 }
 
 #[derive(Archive, Serialize, Deserialize, Debug, PartialEq, Clone)]
@@ -19,11 +20,12 @@ pub(super) struct TrackIndex {
 }
 
 impl TrackIndex {
-    pub(super) fn read<P: AsRef<Path>>(path: P) -> Result<Self> {
+    pub(super) fn read<P: AsRef<Path>>(path: P, min_contig_length: u64) -> Result<Self> {
         let file = File::open(path)?;
         let reader = BufReader::new(file);
         let mut entries = Vec::new();
 
+        // Read names and offsets from the file
         for line in reader.split(b'\n') {
             let line = line?;
             let mut fields = line.splitn(2, |&b| b == b'\t');
@@ -39,10 +41,30 @@ impl TrackIndex {
                     .ok()
                     .and_then(|s| s.parse::<u64>().ok())
                 {
-                    entries.push(TrackIndexRecord { name, offset });
+                    entries.push((name, offset));
                 }
             }
         }
+
+        // Create entries by computing length of neighboring offsets
+        let entries = entries
+            .windows(2)
+            .map(|pair| {
+                if let [(Some(name), offset), (_, next_offset)] = pair {
+                    Ok(TrackIndexRecord {
+                        name: name.clone(),
+                        offset: *offset,
+                        length: next_offset - offset,
+                    })
+                } else {
+                    Err(anyhow::anyhow!("Invalid track index format"))
+                }
+            })
+            .filter(|r| match r {
+                Ok(record) => record.length >= min_contig_length,
+                Err(_) => true,
+            })
+            .collect::<Result<Vec<_>>>()?;
 
         Ok(TrackIndex { entries })
     }
@@ -51,21 +73,13 @@ impl TrackIndex {
 impl ArchivedTrackIndex {
     pub(super) fn contigs(&self) -> Vec<(&[u8], u64)> {
         self.entries
-            .windows(2)
-            .filter_map(|pair| match &pair[0].name {
-                ArchivedOption::Some(name) => {
-                    Some((name.as_slice(), pair[1].offset - pair[0].offset))
-                }
-                _ => unreachable!(),
-            })
+            .iter()
+            .map(|entry| (&entry.name[..], u64::from(entry.length)))
             .collect()
     }
 
     pub(super) fn query(&self, name: &[u8], start: u64) -> Result<u64> {
-        let i = self.entries.iter().find(|r| match &r.name {
-            ArchivedOption::Some(entry_name) => entry_name == name,
-            ArchivedOption::None => false,
-        });
+        let i = self.entries.iter().find(|r| r.name.as_slice() == name);
         match i {
             Some(entry) => Ok(u64::from(entry.offset) + start),
             None => Err(anyhow::anyhow!(

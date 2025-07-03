@@ -82,3 +82,23 @@ def test_cache(tracks_path: Path) -> None:
 
     # Clean up cache
     cache_path.unlink()
+
+
+def test_min_contig_length(tracks_path: Path, expected_names: list[str]) -> None:
+    min_length = 1_000_000
+    ref = TrackLoader(tracks_path, no_cache=True)
+    restricted = TrackLoader(tracks_path, min_contig_length=min_length, no_cache=True)
+    print(ref.names)
+    print(restricted.names)
+    for name in expected_names:
+        ref_contigs = ref.contigs(name)
+        print(ref_contigs)
+        restricted_contigs = restricted.contigs(name)
+        print(restricted_contigs)
+        for contig, length in ref_contigs:
+            if length >= min_length:
+                assert (contig, length) in restricted_contigs
+            else:
+                assert (contig, length) not in restricted_contigs
+        for contig, length in restricted_contigs:
+            assert (contig, length) in ref_contigs

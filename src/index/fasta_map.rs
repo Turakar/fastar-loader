@@ -31,11 +31,11 @@ pub(crate) struct FastaMap {
 }
 
 impl FastaMap {
-    pub(crate) fn build(dir: &str, strict: bool) -> Result<Self> {
+    pub(crate) fn build(dir: &str, strict: bool, min_contig_length: u64) -> Result<Self> {
         let mut map = BTreeMap::new();
         for map_result in glob::glob(format!("{}/*.fna.gz", dir).as_str())? {
             let map_path = map_result?;
-            match Self::index_path(&map_path) {
+            match Self::index_path(&map_path, min_contig_length) {
                 Ok((track_name, index)) => {
                     map.insert(track_name, index);
                 }
@@ -59,12 +59,15 @@ impl FastaMap {
         })
     }
 
-    fn index_path(fasta_path: &Path) -> Result<(String, Index)> {
+    fn index_path(fasta_path: &Path, min_contig_length: u64) -> Result<(String, Index)> {
         let fasta_name = get_name_without_suffix(fasta_path, ".fna.gz")?;
         let gzi = BgzfIndex::read(with_suffix(fasta_path.to_path_buf(), ".gzi"))
             .context("Failed to read .gzi")?;
-        let fai = FastaIndex::read(with_suffix(fasta_path.to_path_buf(), ".fai"))
-            .context("Failed to read .fai")?;
+        let fai = FastaIndex::read(
+            with_suffix(fasta_path.to_path_buf(), ".fai"),
+            min_contig_length,
+        )
+        .context("Failed to read .fai")?;
         Ok((fasta_name, Index { gzi, fai }))
     }
 }

@@ -197,7 +197,7 @@ mod tests {
 
     #[test]
     fn test_create() {
-        let data = FastaMap::build("test_data", true).unwrap();
+        let data = FastaMap::build("test_data", true, 0).unwrap();
         let container: ShmemArchive<FastaMap> = ShmemArchive::new(&data).unwrap();
         let reference = container.as_ref();
         reference.names();
@@ -205,7 +205,7 @@ mod tests {
 
     #[test]
     fn test_invalid_magic() {
-        let data = FastaMap::build("test_data", true).unwrap();
+        let data = FastaMap::build("test_data", true, 0).unwrap();
         let container: ShmemArchive<FastaMap> = ShmemArchive::new(&data).unwrap();
         let os_id = container.get_os_id();
         let shmem = ShmemConf::new().os_id(os_id).open().unwrap();
@@ -220,7 +220,7 @@ mod tests {
 
     #[test]
     fn test_from_os_id() {
-        let data = FastaMap::build("test_data", true).unwrap();
+        let data = FastaMap::build("test_data", true, 0).unwrap();
         let container: ShmemArchive<FastaMap> = ShmemArchive::new(&data).unwrap();
         let os_id = container.get_os_id();
         let new_container: ShmemArchive<FastaMap> = ShmemArchive::from_os_id(os_id).unwrap();
@@ -238,7 +238,7 @@ mod tests {
     #[test]
     fn test_write_and_read_from_file() {
         // Setup shmem fasta map
-        let data = FastaMap::build("test_data", true).unwrap();
+        let data = FastaMap::build("test_data", true, 0).unwrap();
         let container: ShmemArchive<FastaMap> = ShmemArchive::new(&data).unwrap();
         // Write to a temporary file
         let mut temp_file = tempfile().unwrap();
@@ -255,7 +255,7 @@ mod tests {
     #[test]
     fn test_write_and_read_invalid_magic() {
         // Setup shmem fasta map
-        let data = FastaMap::build("test_data", true).unwrap();
+        let data = FastaMap::build("test_data", true, 0).unwrap();
         let container: ShmemArchive<FastaMap> = ShmemArchive::new(&data).unwrap();
         // Write to a temporary file
         let mut temp_file = tempfile().unwrap();
@@ -275,7 +275,7 @@ mod tests {
     #[test]
     fn test_truncate_file_to_zero() {
         // Setup shmem fasta map
-        let data = FastaMap::build("test_data", true).unwrap();
+        let data = FastaMap::build("test_data", true, 0).unwrap();
         let container: ShmemArchive<FastaMap> = ShmemArchive::new(&data).unwrap();
         // Write to a temporary file
         let mut temp_file = tempfile().unwrap();
@@ -292,7 +292,7 @@ mod tests {
     #[test]
     fn test_write_and_read_corrupted_data() {
         // Setup shmem fasta map
-        let data = FastaMap::build("test_data", true).unwrap();
+        let data = FastaMap::build("test_data", true, 0).unwrap();
         let container: ShmemArchive<FastaMap> = ShmemArchive::new(&data).unwrap();
         // Write to a temporary file
         let mut temp_file = tempfile().unwrap();

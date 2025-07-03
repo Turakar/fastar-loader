@@ -64,10 +64,13 @@ impl PyFastaMap {
         strict: bool,
         force_build: bool,
         no_cache: bool,
+        min_contig_length: u64,
     ) -> PyResult<Self> {
-        py.allow_threads(|| cache::load_fasta_map(dir, strict, force_build, no_cache))
-            .map(|shmem| PyFastaMap { shmem })
-            .map_err(|e| PyRuntimeError::new_err(format!("{:?}", e)))
+        py.allow_threads(|| {
+            cache::load_fasta_map(dir, strict, force_build, no_cache, min_contig_length)
+        })
+        .map(|shmem| PyFastaMap { shmem })
+        .map_err(|e| PyRuntimeError::new_err(format!("{:?}", e)))
     }
 
     #[getter]
@@ -127,10 +130,13 @@ impl PyTrackMap {
         strict: bool,
         force_build: bool,
         no_cache: bool,
+        min_contig_length: u64,
     ) -> PyResult<Self> {
-        py.allow_threads(|| cache::load_track_map(dir, strict, force_build, no_cache))
-            .map(|shmem| PyTrackMap { shmem })
-            .map_err(|e| PyRuntimeError::new_err(format!("{:?}", e)))
+        py.allow_threads(|| {
+            cache::load_track_map(dir, strict, force_build, no_cache, min_contig_length)
+        })
+        .map(|shmem| PyTrackMap { shmem })
+        .map_err(|e| PyRuntimeError::new_err(format!("{:?}", e)))
     }
 
     #[getter]
