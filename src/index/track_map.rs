@@ -32,8 +32,14 @@ pub(crate) struct TrackMap {
 impl TrackMap {
     pub(crate) fn build(dir: &str, strict: bool, min_contig_length: u64) -> Result<Self> {
         let mut map = BTreeMap::new();
-        for track_result in glob::glob(format!("{}/*.track.gz", dir).as_str())? {
-            let track_path = track_result?;
+        let paths = glob::glob(format!("{}/*.track.gz", dir).as_str())?
+            .map(|entry| entry.map_err(anyhow::Error::from))
+            .collect::<Result<Vec<_>>>()?;
+        let num_paths = paths.len();
+        for (i, track_path) in paths.into_iter().enumerate() {
+            if i % 100 == 0 && num_paths > 100 {
+                eprintln!("Processed {}/{} track indices", i, num_paths,);
+            }
             match Self::index_path(&track_path, min_contig_length) {
                 Ok((track_name, index)) => {
                     map.insert(track_name, index);
@@ -51,6 +57,7 @@ impl TrackMap {
                 }
             }
         }
+        eprintln!("Processed {} track indices", num_paths);
         Ok(TrackMap {
             map,
             dir: dir.to_string(),

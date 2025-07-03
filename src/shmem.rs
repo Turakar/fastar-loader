@@ -33,7 +33,7 @@ where
     >,
     T::Archived: 'static + Portable,
 {
-    pub(crate) fn new(data: &T) -> Result<Self> {
+    pub(crate) fn new(data: T) -> Result<Self> {
         // We store an additional magic value at the beginning of the shared memory
         // to verify the data type during access.
         let magic_value = type_specific_magic::<T::Archived>();
@@ -42,8 +42,9 @@ where
         let mut first_page = Vec::with_capacity(page_size::get());
         first_page.extend_from_slice(magic_value.to_ne_bytes().as_slice());
         first_page.resize(page_size::get(), 0);
-        // Serialize the data to bytes (copy)
-        let bytes = rkyv::to_bytes::<rancor::Error>(data)?;
+        // Serialize the data to bytes (copy), then forget the original data
+        let bytes = rkyv::to_bytes::<rancor::Error>(&data)?;
+        std::mem::drop(data);
         // Allocate shared memory
         let shmem = ShmemConf::new()
             .size(first_page.len() + bytes.len())
@@ -198,7 +199,7 @@ mod tests {
     #[test]
     fn test_create() {
         let data = FastaMap::build("test_data", true, 0).unwrap();
-        let container: ShmemArchive<FastaMap> = ShmemArchive::new(&data).unwrap();
+        let container: ShmemArchive<FastaMap> = ShmemArchive::new(data).unwrap();
         let reference = container.as_ref();
         reference.names();
     }
@@ -206,7 +207,7 @@ mod tests {
     #[test]
     fn test_invalid_magic() {
         let data = FastaMap::build("test_data", true, 0).unwrap();
-        let container: ShmemArchive<FastaMap> = ShmemArchive::new(&data).unwrap();
+        let container: ShmemArchive<FastaMap> = ShmemArchive::new(data).unwrap();
         let os_id = container.get_os_id();
         let shmem = ShmemConf::new().os_id(os_id).open().unwrap();
         unsafe {
@@ -221,7 +222,7 @@ mod tests {
     #[test]
     fn test_from_os_id() {
         let data = FastaMap::build("test_data", true, 0).unwrap();
-        let container: ShmemArchive<FastaMap> = ShmemArchive::new(&data).unwrap();
+        let container: ShmemArchive<FastaMap> = ShmemArchive::new(data).unwrap();
         let os_id = container.get_os_id();
         let new_container: ShmemArchive<FastaMap> = ShmemArchive::from_os_id(os_id).unwrap();
         assert_eq!(container.as_ref().names(), new_container.as_ref().names());
@@ -239,7 +240,7 @@ mod tests {
     fn test_write_and_read_from_file() {
         // Setup shmem fasta map
         let data = FastaMap::build("test_data", true, 0).unwrap();
-        let container: ShmemArchive<FastaMap> = ShmemArchive::new(&data).unwrap();
+        let container: ShmemArchive<FastaMap> = ShmemArchive::new(data).unwrap();
         // Write to a temporary file
         let mut temp_file = tempfile().unwrap();
         container.write_to_file(&temp_file).unwrap();
@@ -256,7 +257,7 @@ mod tests {
     fn test_write_and_read_invalid_magic() {
         // Setup shmem fasta map
         let data = FastaMap::build("test_data", true, 0).unwrap();
-        let container: ShmemArchive<FastaMap> = ShmemArchive::new(&data).unwrap();
+        let container: ShmemArchive<FastaMap> = ShmemArchive::new(data).unwrap();
         // Write to a temporary file
         let mut temp_file = tempfile().unwrap();
         container.write_to_file(&temp_file).unwrap();
@@ -276,7 +277,7 @@ mod tests {
     fn test_truncate_file_to_zero() {
         // Setup shmem fasta map
         let data = FastaMap::build("test_data", true, 0).unwrap();
-        let container: ShmemArchive<FastaMap> = ShmemArchive::new(&data).unwrap();
+        let container: ShmemArchive<FastaMap> = ShmemArchive::new(data).unwrap();
         // Write to a temporary file
         let mut temp_file = tempfile().unwrap();
         container.write_to_file(&temp_file).unwrap();
@@ -293,7 +294,7 @@ mod tests {
     fn test_write_and_read_corrupted_data() {
         // Setup shmem fasta map
         let data = FastaMap::build("test_data", true, 0).unwrap();
-        let container: ShmemArchive<FastaMap> = ShmemArchive::new(&data).unwrap();
+        let container: ShmemArchive<FastaMap> = ShmemArchive::new(data).unwrap();
         // Write to a temporary file
         let mut temp_file = tempfile().unwrap();
         container.write_to_file(&temp_file).unwrap();

@@ -33,8 +33,14 @@ pub(crate) struct FastaMap {
 impl FastaMap {
     pub(crate) fn build(dir: &str, strict: bool, min_contig_length: u64) -> Result<Self> {
         let mut map = BTreeMap::new();
-        for map_result in glob::glob(format!("{}/*.fna.gz", dir).as_str())? {
-            let map_path = map_result?;
+        let paths = glob::glob(format!("{}/*.fna.gz", dir).as_str())?
+            .map(|entry| entry.map_err(anyhow::Error::from))
+            .collect::<Result<Vec<_>>>()?;
+        let num_paths = paths.len();
+        for (i, map_path) in paths.into_iter().enumerate() {
+            if i % 100 == 0 && num_paths > 100 {
+                eprintln!("Processed {}/{} FASTA indices", i, num_paths,);
+            }
             match Self::index_path(&map_path, min_contig_length) {
                 Ok((track_name, index)) => {
                     map.insert(track_name, index);
@@ -53,6 +59,7 @@ impl FastaMap {
                 }
             }
         }
+        eprintln!("Processed {} FASTA indices", num_paths);
         Ok(FastaMap {
             map,
             dir: dir.to_string(),
