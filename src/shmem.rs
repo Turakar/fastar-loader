@@ -180,7 +180,7 @@ where
     }
 }
 
-fn type_specific_magic<T: 'static>() -> u64 {
+pub(crate) fn type_specific_magic<T: 'static>() -> u64 {
     let mut hasher = DefaultHasher::new();
     TypeId::of::<T>().hash(&mut hasher);
     hasher.finish()

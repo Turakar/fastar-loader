@@ -42,3 +42,6 @@ extend-select = ["I"]
 
 [tool.pyright]
 include = ["python/fastar_loader", "tests"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
