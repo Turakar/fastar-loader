@@ -20,7 +20,7 @@ pub(super) fn load_fasta_map(
         bail!("no_cache=true already implies force_build=true");
     }
     let magic_value = type_specific_magic::<ArchivedFastaMap>();
-    let cache_path = Path::new(dir).join(format!(".fasta-map-cache-{:04x}", magic_value));
+    let cache_path = Path::new(dir).join(format!(".fasta-map-cache-{:016x}", magic_value));
     if cache_path.exists() && !no_cache && !force_build {
         let expected_names = get_expected_names(dir, ".fna.gz")?;
         match ShmemArchive::read_from_file(&File::open(&cache_path)?) {
@@ -63,7 +63,7 @@ pub(super) fn load_track_map(
         bail!("no_cache=true already implies force_build=true");
     }
     let magic_value = type_specific_magic::<ArchivedTrackMap>();
-    let cache_path = Path::new(dir).join(format!(".track-map-cache-{:04x}", magic_value));
+    let cache_path = Path::new(dir).join(format!(".track-map-cache-{:016x}", magic_value));
     if cache_path.exists() && !no_cache && !force_build {
         let expected_names = get_expected_names(dir, ".track.gz")?;
         match ShmemArchive::read_from_file(&File::open(&cache_path)?) {
