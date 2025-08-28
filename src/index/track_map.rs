@@ -25,14 +25,13 @@ struct Index {
 
 #[derive(Archive, Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub(crate) struct TrackMap {
-    dir: String,
     map: BTreeMap<String, Index>,
 }
 
 impl TrackMap {
-    pub(crate) fn build(dir: &str, strict: bool, min_contig_length: u64) -> Result<Self> {
+    pub(crate) fn build(root: &str, strict: bool, min_contig_length: u64) -> Result<Self> {
         let mut map = BTreeMap::new();
-        let paths = glob::glob(format!("{}/*.track.gz", dir).as_str())?
+        let paths = glob::glob(format!("{}/*.track.gz", root).as_str())?
             .map(|entry| entry.map_err(anyhow::Error::from))
             .collect::<Result<Vec<_>>>()?;
         let num_paths = paths.len();
@@ -58,10 +57,7 @@ impl TrackMap {
             }
         }
         eprintln!("Processed {} track indices", num_paths);
-        Ok(TrackMap {
-            map,
-            dir: dir.to_string(),
-        })
+        Ok(TrackMap { map })
     }
 
     fn index_path(track_path: &Path, min_contig_length: u64) -> Result<(String, Index)> {
@@ -92,6 +88,7 @@ impl ArchivedTrackMap {
 
     pub(crate) fn query(
         &self,
+        root: &str,
         track_name: &str,
         contig: &[u8],
         start: u64,
@@ -103,18 +100,19 @@ impl ArchivedTrackMap {
             .ok_or(anyhow::anyhow!("Name not found"))?;
         let pos = entry.track_index.query(contig, start)?;
         let offset = entry.gzi.query(pos)?;
-        let path = Path::new(self.dir.as_str()).join(format!("{}.track.gz", track_name));
+        let path = Path::new(root).join(format!("{}.track.gz", track_name));
         Ok((path, offset))
     }
 
     pub(crate) fn read_sequence(
         &self,
+        root: &str,
         track_name: &str,
         contig: &[u8],
         start: u64,
         length: u64,
     ) -> Result<Array1<u8>> {
-        let (path, pos) = self.query(track_name, contig, start)?;
+        let (path, pos) = self.query(root, track_name, contig, start)?;
         let mut reader = bgzf::Reader::new(File::open(path)?);
         reader.seek_to_virtual_position(pos)?;
         let mut byte_buffer = vec![0; length as usize];

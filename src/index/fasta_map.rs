@@ -26,14 +26,13 @@ struct Index {
 
 #[derive(Archive, Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub(crate) struct FastaMap {
-    dir: String,
     map: BTreeMap<String, Index>,
 }
 
 impl FastaMap {
-    pub(crate) fn build(dir: &str, strict: bool, min_contig_length: u64) -> Result<Self> {
+    pub(crate) fn build(root: &str, strict: bool, min_contig_length: u64) -> Result<Self> {
         let mut map = BTreeMap::new();
-        let paths = glob::glob(format!("{}/*.fna.gz", dir).as_str())?
+        let paths = glob::glob(format!("{}/*.fna.gz", root).as_str())?
             .map(|entry| entry.map_err(anyhow::Error::from))
             .collect::<Result<Vec<_>>>()?;
         let num_paths = paths.len();
@@ -60,10 +59,7 @@ impl FastaMap {
             }
         }
         eprintln!("Processed {} FASTA indices", num_paths);
-        Ok(FastaMap {
-            map,
-            dir: dir.to_string(),
-        })
+        Ok(FastaMap { map })
     }
 
     fn index_path(fasta_path: &Path, min_contig_length: u64) -> Result<(String, Index)> {
@@ -94,6 +90,7 @@ impl ArchivedFastaMap {
 
     pub(crate) fn query(
         &self,
+        root: &str,
         fasta_name: &str,
         contig: &[u8],
         start: u64,
@@ -105,18 +102,19 @@ impl ArchivedFastaMap {
             .ok_or(anyhow::anyhow!("Fasta name not found"))?;
         let pos = entry.fai.query(contig, start)?;
         let offset = entry.gzi.query(pos)?;
-        let path = Path::new(self.dir.as_ref()).join(format!("{}.fna.gz", fasta_name));
+        let path = Path::new(root).join(format!("{}.fna.gz", fasta_name));
         Ok((path, offset))
     }
 
     pub(crate) fn read_sequence(
         &self,
+        root: &str,
         fasta_name: &str,
         contig: &[u8],
         start: u64,
         length: u64,
     ) -> Result<Array1<u8>> {
-        let (path, pos) = self.query(fasta_name, contig, start)?;
+        let (path, pos) = self.query(root, fasta_name, contig, start)?;
 
         // Open FASTA sequence reader at correct offset
         let mut bgzf_reader = bgzf::Reader::new(File::open(path)?);
