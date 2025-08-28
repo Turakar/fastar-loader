@@ -102,8 +102,7 @@ impl ArchivedTrackMap {
             .get(track_name)
             .ok_or(anyhow::anyhow!("Name not found"))?;
         let pos = entry.track_index.query(contig, start)?;
-        let f32_size = std::mem::size_of::<f32>() as u64;
-        let offset = entry.gzi.query(pos * f32_size)?;
+        let offset = entry.gzi.query(pos)?;
         let path = Path::new(self.dir.as_str()).join(format!("{}.track.gz", track_name));
         Ok((path, offset))
     }
@@ -114,23 +113,12 @@ impl ArchivedTrackMap {
         contig: &[u8],
         start: u64,
         length: u64,
-    ) -> Result<Array1<f32>> {
+    ) -> Result<Array1<u8>> {
         let (path, pos) = self.query(track_name, contig, start)?;
-
         let mut reader = bgzf::Reader::new(File::open(path)?);
         reader.seek_to_virtual_position(pos)?;
-
-        let float_size = std::mem::size_of::<f32>();
-        let total_bytes = (length as usize) * float_size;
-        let mut byte_buffer = vec![0; total_bytes];
-
+        let mut byte_buffer = vec![0; length as usize];
         reader.read_exact(&mut byte_buffer)?;
-
-        let buffer = byte_buffer
-            .chunks_exact(float_size)
-            .map(|b| f32::from_le_bytes(b.try_into().unwrap()))
-            .collect();
-
-        Ok(buffer)
+        Ok(Array1::from(byte_buffer))
     }
 }

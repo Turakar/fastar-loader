@@ -171,7 +171,7 @@ impl PyTrackMap {
         contig: &[u8],
         start: u64,
         length: u64,
-    ) -> PyResult<Bound<'py, PyArray1<f32>>> {
+    ) -> PyResult<Bound<'py, PyArray1<u8>>> {
         py.allow_threads(|| {
             self.shmem
                 .as_ref()

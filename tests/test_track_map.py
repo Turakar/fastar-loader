@@ -30,7 +30,7 @@ def test_read_sequence(
     loader: TrackLoader, track_test_data: tuple[Path, str, str, int, int, np.ndarray]
 ) -> None:
     _, name, contig, start, length, expected_sequence = track_test_data
-    sequence = loader.read_sequence(name, contig, start, length)
+    sequence = _read_f32(loader, name, contig, start, length)
     assert_array_equal(sequence, expected_sequence)
 
 
@@ -38,13 +38,13 @@ def test_pickle(
     loader: TrackLoader, track_test_data: tuple[Path, str, str, int, int, np.ndarray]
 ) -> None:
     _, name, contig, start, length, expected_sequence = track_test_data
-    sequence = loader.read_sequence(name, contig, start, length)
+    sequence = _read_f32(loader, name, contig, start, length)
     assert_array_equal(sequence, expected_sequence)
 
     pickled_loader = pickle.dumps(loader)
     unpickled_loader = pickle.loads(pickled_loader)
 
-    sequence = unpickled_loader.read_sequence(name, contig, start, length)
+    sequence = _read_f32(unpickled_loader, name, contig, start, length)
     assert_array_equal(sequence, expected_sequence)
 
 
@@ -52,13 +52,12 @@ def test_multiprocess(
     loader: TrackLoader, track_test_data: tuple[Path, str, str, int, int, np.ndarray]
 ) -> None:
     _, name, contig, start, length, expected_sequence = track_test_data
-    sequence = loader.read_sequence(name, contig, start, length)
+    sequence = _read_f32(loader, name, contig, start, length)
     assert_array_equal(sequence, expected_sequence)
 
     with ProcessPoolExecutor(mp_context=multiprocessing.get_context("spawn")) as executor:
-        future = executor.submit(loader.read_sequence, name, contig, start, length)
+        future = executor.submit(_read_f32, loader, name, contig, start, length)
         sequence = future.result()
-
     assert_array_equal(sequence, expected_sequence)
 
 
@@ -106,3 +105,10 @@ def test_min_contig_length(tracks_path: Path, expected_names: list[str]) -> None
                 assert (contig, length) not in restricted_contigs
         for contig, length in restricted_contigs:
             assert (contig, length) in ref_contigs
+
+
+def _read_f32(
+    track_loader: TrackLoader, name: str, contig: str, start: int, length: int
+) -> np.ndarray:
+    bytes_data = track_loader.read_sequence(name, contig, start * 4, length * 4)
+    return np.frombuffer(bytes_data, dtype=np.float32)

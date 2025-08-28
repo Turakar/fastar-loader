@@ -119,7 +119,7 @@ def track_test_data(
     )
     row = index.filter(pl.col("contig") == contig).select(pl.col("offset"))
     assert len(row) > 0
-    offset = row.item() + start
+    offset = row.item() // 4 + start
 
     # read data
     with tempfile.TemporaryDirectory(prefix="fastar-loader-tests-") as tmpdir:
@@ -127,7 +127,9 @@ def track_test_data(
         with open(uncompressed_path, "wb") as f, gzip.open(path, "rb") as gz:
             shutil.copyfileobj(gz, f)
         mmap = np.memmap(uncompressed_path, dtype=np.float32, mode="r")
-        assert mmap.shape[0] == index["offset"].last()
+        last_offset = index["offset"].last()
+        assert isinstance(last_offset, int)
+        assert mmap.shape[0] == last_offset / 4
         assert offset + length <= mmap.shape[0]
         data = mmap[offset : offset + length]
 
