@@ -1,5 +1,5 @@
 use crate::index::bgzf_index::BgzfIndex;
-use crate::util::get_name_without_suffix;
+use crate::util::{get_relative_name_without_suffix, with_suffix};
 use anyhow::Context;
 use noodles::bgzf::{self, io::Seek, VirtualPosition};
 
@@ -12,8 +12,6 @@ use std::{
     fs::File,
     path::{Path, PathBuf},
 };
-
-use crate::util::with_suffix;
 
 use super::track_index::TrackIndex;
 
@@ -31,7 +29,7 @@ pub(crate) struct TrackMap {
 impl TrackMap {
     pub(crate) fn build(root: &str, strict: bool, min_contig_length: u64) -> Result<Self> {
         let mut map = BTreeMap::new();
-        let paths = glob::glob(format!("{}/*.track.gz", root).as_str())?
+        let paths = glob::glob(format!("{}/**/*.track.gz", root).as_str())?
             .map(|entry| entry.map_err(anyhow::Error::from))
             .collect::<Result<Vec<_>>>()?;
         let num_paths = paths.len();
@@ -39,7 +37,7 @@ impl TrackMap {
             if i % 100 == 0 && num_paths > 100 {
                 eprintln!("Processed {}/{} track indices", i, num_paths,);
             }
-            match Self::index_path(&track_path, min_contig_length) {
+            match Self::index_path(&track_path, Path::new(root), min_contig_length) {
                 Ok((track_name, index)) => {
                     map.insert(track_name, index);
                 }
@@ -60,8 +58,12 @@ impl TrackMap {
         Ok(TrackMap { map })
     }
 
-    fn index_path(track_path: &Path, min_contig_length: u64) -> Result<(String, Index)> {
-        let track_name = get_name_without_suffix(track_path, ".track.gz")?;
+    fn index_path(
+        track_path: &Path,
+        root: &Path,
+        min_contig_length: u64,
+    ) -> Result<(String, Index)> {
+        let track_name = get_relative_name_without_suffix(track_path, root, ".track.gz")?;
         let gzi = BgzfIndex::read(with_suffix(track_path.to_path_buf(), ".gzi"))
             .context("Failed to read .gzi")?;
         let track_index = TrackIndex::read(

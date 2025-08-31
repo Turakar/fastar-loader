@@ -16,7 +16,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use crate::util::{get_name_without_suffix, with_suffix};
+use crate::util::{get_relative_name_without_suffix, with_suffix};
 
 #[derive(Archive, Serialize, Deserialize, Debug, PartialEq, Clone)]
 struct Index {
@@ -32,7 +32,7 @@ pub(crate) struct FastaMap {
 impl FastaMap {
     pub(crate) fn build(root: &str, strict: bool, min_contig_length: u64) -> Result<Self> {
         let mut map = BTreeMap::new();
-        let paths = glob::glob(format!("{}/*.fna.gz", root).as_str())?
+        let paths = glob::glob(format!("{}/**/*.fna.gz", root).as_str())?
             .map(|entry| entry.map_err(anyhow::Error::from))
             .collect::<Result<Vec<_>>>()?;
         let num_paths = paths.len();
@@ -40,7 +40,7 @@ impl FastaMap {
             if i % 100 == 0 && num_paths > 100 {
                 eprintln!("Processed {}/{} FASTA indices", i, num_paths,);
             }
-            match Self::index_path(&map_path, min_contig_length) {
+            match Self::index_path(&map_path, Path::new(root), min_contig_length) {
                 Ok((track_name, index)) => {
                     map.insert(track_name, index);
                 }
@@ -62,8 +62,12 @@ impl FastaMap {
         Ok(FastaMap { map })
     }
 
-    fn index_path(fasta_path: &Path, min_contig_length: u64) -> Result<(String, Index)> {
-        let fasta_name = get_name_without_suffix(fasta_path, ".fna.gz")?;
+    fn index_path(
+        fasta_path: &Path,
+        root: &Path,
+        min_contig_length: u64,
+    ) -> Result<(String, Index)> {
+        let fasta_name = get_relative_name_without_suffix(fasta_path, root, ".fna.gz")?;
         let gzi = BgzfIndex::read(with_suffix(fasta_path.to_path_buf(), ".gzi"))
             .context("Failed to read .gzi")?;
         let fai = FastaIndex::read(

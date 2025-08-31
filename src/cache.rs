@@ -3,7 +3,7 @@ use std::path::Path;
 
 use crate::index::{ArchivedFastaMap, ArchivedTrackMap, FastaMap, TrackMap};
 use crate::shmem::{type_specific_magic, ShmemArchive};
-use crate::util::get_name_without_suffix;
+use crate::util::get_relative_name_without_suffix;
 use anyhow::{bail, Result};
 
 pub(super) fn load_fasta_map(
@@ -93,11 +93,12 @@ pub(super) fn load_track_map(
 }
 
 fn get_expected_names(dir: &str, suffix: &str) -> Result<Vec<String>> {
+    let root_path = Path::new(dir);
     // Get sorted list of files
-    let mut files = glob::glob(format!("{dir}/*{suffix}").as_str())?
+    let mut files = glob::glob(format!("{dir}/**/*{suffix}").as_str())?
         .map(|entry| {
             let path = entry?;
-            let name = get_name_without_suffix(&path, suffix)?;
+            let name = get_relative_name_without_suffix(&path, root_path, suffix)?;
             Ok(name.to_string())
         })
         .collect::<Result<Vec<_>>>()?;

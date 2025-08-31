@@ -10,7 +10,7 @@ To alleviate this, this library can transfer the indices to shared memory, allow
 
 
 ## Input
-All files read by the index are expected to be in one directory and should follow the following naming scheme (where `XXX` is referred to as the name of a FASTA):
+All files read by the index are expected to be in one directory (potentially nested in subdirectories) and should follow the following naming scheme (where `XXX` is referred to as the name of a FASTA):
 
 - `XXX.fna.gz`: The BGZF-compressed FASTA file
 - `XXX.fna.gz.gzi`: The BGZF index
