@@ -4,6 +4,7 @@ use anyhow::Context;
 use noodles::bgzf::{self, io::Seek, VirtualPosition};
 
 use anyhow::Result;
+use indicatif::{ProgressBar, ProgressStyle};
 use numpy::ndarray::Array1;
 use rayon::prelude::*;
 use rkyv::{Archive, Deserialize, Serialize};
@@ -33,22 +34,34 @@ impl TrackMap {
         strict: bool,
         min_contig_length: u64,
         num_workers: Option<usize>,
+        show_progress: bool,
     ) -> Result<Self> {
         let paths = glob::glob(format!("{}/**/*.track.gz", root).as_str())?
             .map(|entry| entry.map_err(anyhow::Error::from))
             .collect::<Result<Vec<_>>>()?;
         let num_paths = paths.len();
 
-        // Build indices in parallel using rayon. If num_workers is set, use a custom thread pool.
+        // Progress bar setup
+        let pb = if show_progress {
+            let pb = ProgressBar::new(num_paths as u64);
+            pb.set_style(
+                ProgressStyle::with_template(
+                    "[{elapsed_precise}] [{bar:40.cyan/blue}] {pos}/{len} {msg}",
+                )
+                .unwrap()
+                .progress_chars("##-"),
+            );
+            Some(pb)
+        } else {
+            None
+        };
+
         let build_indices = || {
             let results: Result<Vec<Option<(String, Index)>>, anyhow::Error> = paths
                 .par_iter()
-                .enumerate()
-                .map(|(i, track_path)| {
-                    if i % 100 == 0 && num_paths > 100 {
-                        eprintln!("Processed {}/{} track indices", i, num_paths);
-                    }
-                    match Self::index_path(track_path, Path::new(root), min_contig_length) {
+                .map(|track_path| {
+                    let res = match Self::index_path(track_path, Path::new(root), min_contig_length)
+                    {
                         Ok((track_name, index)) => Ok(Some((track_name, index))),
                         Err(e) => {
                             if strict {
@@ -62,14 +75,17 @@ impl TrackMap {
                                 Ok(None)
                             }
                         }
+                    };
+                    if let Some(pb) = &pb {
+                        pb.inc(1);
                     }
+                    res
                 })
                 .collect();
             results
         };
 
         let results = if let Some(workers) = num_workers {
-            // Use a custom thread pool for this operation only
             let pool = rayon::ThreadPoolBuilder::new()
                 .num_threads(workers)
                 .build()
@@ -79,9 +95,10 @@ impl TrackMap {
             build_indices()?
         };
 
-        // Convert Vec<Option<(String, Index)>> to BTreeMap
+        if let Some(pb) = pb {
+            pb.finish_with_message("Indexing complete");
+        }
         let map = results.into_iter().flatten().collect::<BTreeMap<_, _>>();
-        eprintln!("Processed {} track indices", num_paths);
         Ok(TrackMap { map })
     }
 

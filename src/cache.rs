@@ -13,6 +13,7 @@ pub(super) fn load_fasta_map(
     no_cache: bool,
     min_contig_length: u64,
     num_workers: Option<usize>,
+    show_progress: bool,
 ) -> Result<ShmemArchive<FastaMap>> {
     if !strict && !no_cache {
         bail!("strict=false requires no_cache=true");
@@ -42,7 +43,7 @@ pub(super) fn load_fasta_map(
             }
         }
     }
-    let fasta_map = FastaMap::build(dir, strict, min_contig_length, num_workers)?;
+    let fasta_map = FastaMap::build(dir, strict, min_contig_length, num_workers, show_progress)?;
     let archive = ShmemArchive::new(fasta_map)?;
     if !no_cache {
         archive.write_to_file(&File::create(&cache_path)?)?;
@@ -57,6 +58,7 @@ pub(super) fn load_track_map(
     no_cache: bool,
     min_contig_length: u64,
     num_workers: Option<usize>,
+    show_progress: bool,
 ) -> Result<ShmemArchive<TrackMap>> {
     if !strict && !no_cache {
         bail!("strict=false requires no_cache=true");
@@ -86,7 +88,7 @@ pub(super) fn load_track_map(
             }
         }
     }
-    let track_map = TrackMap::build(dir, strict, min_contig_length, num_workers)?;
+    let track_map = TrackMap::build(dir, strict, min_contig_length, num_workers, show_progress)?;
     let archive = ShmemArchive::new(track_map)?;
     if !no_cache {
         archive.write_to_file(&File::create(&cache_path)?)?;

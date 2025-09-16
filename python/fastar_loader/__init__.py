@@ -34,10 +34,11 @@ class FastarLoader:
         no_cache: bool = False,
         min_contig_length: int = 0,
         num_workers: int | None = None,
+        show_progress: bool = True,
     ):
         self._path = str(path)
         self._index_map = _rust.FastaMap.load(
-            self._path, strict, force_build, no_cache, min_contig_length, num_workers
+            self._path, strict, force_build, no_cache, min_contig_length, num_workers, show_progress
         )
 
     @property
@@ -72,10 +73,11 @@ class TrackLoader:
         no_cache: bool = False,
         min_contig_length: int = 0,
         num_workers: int | None = None,
+        show_progress: bool = True,
     ):
         self._path = str(path)
         self._index_map = _rust.TrackMap.load(
-            self._path, strict, force_build, no_cache, min_contig_length, num_workers
+            self._path, strict, force_build, no_cache, min_contig_length, num_workers, show_progress
         )
 
     @property

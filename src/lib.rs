@@ -58,6 +58,7 @@ struct PyFastaMap {
 
 #[pymethods]
 impl PyFastaMap {
+    #[allow(clippy::too_many_arguments)]
     #[staticmethod]
     fn load(
         py: Python,
@@ -67,6 +68,7 @@ impl PyFastaMap {
         no_cache: bool,
         min_contig_length: u64,
         num_workers: Option<usize>,
+        show_progress: bool,
     ) -> PyResult<Self> {
         py.allow_threads(|| {
             cache::load_fasta_map(
@@ -76,6 +78,7 @@ impl PyFastaMap {
                 no_cache,
                 min_contig_length,
                 num_workers,
+                show_progress,
             )
         })
         .map(|shmem| PyFastaMap {
@@ -144,6 +147,7 @@ struct PyTrackMap {
 
 #[pymethods]
 impl PyTrackMap {
+    #[allow(clippy::too_many_arguments)]
     #[staticmethod]
     fn load(
         py: Python,
@@ -153,6 +157,7 @@ impl PyTrackMap {
         no_cache: bool,
         min_contig_length: u64,
         num_workers: Option<usize>,
+        show_progress: bool,
     ) -> PyResult<Self> {
         py.allow_threads(|| {
             cache::load_track_map(
@@ -162,6 +167,7 @@ impl PyTrackMap {
                 no_cache,
                 min_contig_length,
                 num_workers,
+                show_progress,
             )
         })
         .map(|shmem| PyTrackMap {
