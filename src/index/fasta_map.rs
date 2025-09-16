@@ -8,6 +8,7 @@ use noodles::{
 use anyhow::Result;
 use anyhow::{anyhow, Context};
 use numpy::ndarray::Array1;
+use rayon::prelude::*;
 use rkyv::{Archive, Deserialize, Serialize};
 use std::{
     collections::BTreeMap,
@@ -31,34 +32,62 @@ pub(crate) struct FastaMap {
 }
 
 impl FastaMap {
-    pub(crate) fn build(dir: &str, strict: bool, min_contig_length: u64) -> Result<Self> {
-        let mut map = BTreeMap::new();
+    pub(crate) fn build(
+        dir: &str,
+        strict: bool,
+        min_contig_length: u64,
+        num_workers: Option<usize>,
+    ) -> Result<Self> {
         let paths = glob::glob(format!("{}/*.fna.gz", dir).as_str())?
             .map(|entry| entry.map_err(anyhow::Error::from))
             .collect::<Result<Vec<_>>>()?;
         let num_paths = paths.len();
-        for (i, map_path) in paths.into_iter().enumerate() {
-            if i % 100 == 0 && num_paths > 100 {
-                eprintln!("Processed {}/{} FASTA indices", i, num_paths,);
-            }
-            match Self::index_path(&map_path, min_contig_length) {
-                Ok((track_name, index)) => {
-                    map.insert(track_name, index);
-                }
-                Err(e) => {
-                    if strict {
-                        return Err(e)
-                            .context(format!("Error processing track! {}", map_path.display()));
-                    } else {
-                        eprintln!(
-                            "Error processing track: {}. Skipping. Error: {:?}",
-                            map_path.display(),
-                            e
-                        );
+
+        // Build indices in parallel using rayon. If num_workers is set, use a custom thread pool.
+        let build_indices = || {
+            let results: Result<Vec<Option<(String, Index)>>, anyhow::Error> = paths
+                .par_iter()
+                .enumerate()
+                .map(|(i, map_path)| {
+                    if i % 100 == 0 && num_paths > 100 {
+                        eprintln!("Processed {}/{} FASTA indices", i, num_paths);
                     }
-                }
-            }
-        }
+                    match Self::index_path(map_path, min_contig_length) {
+                        Ok((track_name, index)) => Ok(Some((track_name, index))),
+                        Err(e) => {
+                            if strict {
+                                Err(e.context(format!(
+                                    "Error processing track! {}",
+                                    map_path.display()
+                                )))
+                            } else {
+                                eprintln!(
+                                    "Error processing track: {}. Skipping. Error: {:?}",
+                                    map_path.display(),
+                                    e
+                                );
+                                Ok(None)
+                            }
+                        }
+                    }
+                })
+                .collect();
+            results
+        };
+
+        let results = if let Some(workers) = num_workers {
+            // Use a custom thread pool for this operation only
+            let pool = rayon::ThreadPoolBuilder::new()
+                .num_threads(workers)
+                .build()
+                .unwrap();
+            pool.install(build_indices)?
+        } else {
+            build_indices()?
+        };
+
+        // Convert Vec<Option<(String, Index)>> to BTreeMap
+        let map = results.into_iter().flatten().collect::<BTreeMap<_, _>>();
         eprintln!("Processed {} FASTA indices", num_paths);
         Ok(FastaMap {
             map,

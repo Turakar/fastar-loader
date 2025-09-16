@@ -26,6 +26,18 @@ def test_structure(loader: FastarLoader, fasta_structure: dict[str, list[tuple[s
         assert loader.contigs(name) == contigs
 
 
+def test_custom_num_workers(
+    assemblies_path: Path,
+    expected_names: list[str],
+    fasta_structure: dict[str, list[tuple[str, int]]],
+) -> None:
+    loader = FastarLoader(assemblies_path, no_cache=True, num_workers=2)
+    names = loader.names
+    assert len(names) == len(expected_names)
+    for name, contigs in fasta_structure.items():
+        assert loader.contigs(name) == contigs
+
+
 def test_read_sequence(
     loader: FastarLoader, fasta_test_data: tuple[Path, str, str, int, int, np.ndarray]
 ) -> None:

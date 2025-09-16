@@ -65,9 +65,17 @@ impl PyFastaMap {
         force_build: bool,
         no_cache: bool,
         min_contig_length: u64,
+        num_workers: Option<usize>,
     ) -> PyResult<Self> {
         py.allow_threads(|| {
-            cache::load_fasta_map(dir, strict, force_build, no_cache, min_contig_length)
+            cache::load_fasta_map(
+                dir,
+                strict,
+                force_build,
+                no_cache,
+                min_contig_length,
+                num_workers,
+            )
         })
         .map(|shmem| PyFastaMap { shmem })
         .map_err(|e| PyRuntimeError::new_err(format!("{:?}", e)))
@@ -131,9 +139,17 @@ impl PyTrackMap {
         force_build: bool,
         no_cache: bool,
         min_contig_length: u64,
+        num_workers: Option<usize>,
     ) -> PyResult<Self> {
         py.allow_threads(|| {
-            cache::load_track_map(dir, strict, force_build, no_cache, min_contig_length)
+            cache::load_track_map(
+                dir,
+                strict,
+                force_build,
+                no_cache,
+                min_contig_length,
+                num_workers,
+            )
         })
         .map(|shmem| PyTrackMap { shmem })
         .map_err(|e| PyRuntimeError::new_err(format!("{:?}", e)))
