@@ -47,6 +47,7 @@ pub(super) fn load_fasta_map(
     if no_cache {
         return ShmemArchive::new(fasta_map);
     }
+    eprintln!("Writing cache to {}", cache_path.display());
     ShmemArchive::write_to_file_direct(&fasta_map, &cache_path)?;
     std::mem::drop(fasta_map);
     let archive = ShmemArchive::read_from_file(&File::open(cache_path)?)?;
