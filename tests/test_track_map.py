@@ -40,7 +40,7 @@ def test_read_sequence(
     loader: TrackLoader, track_test_data: tuple[Path, str, str, int, int, np.ndarray]
 ) -> None:
     _, name, contig, start, length, expected_sequence = track_test_data
-    sequence = loader.read_sequence(name, contig, start, length)
+    sequence = _read_f32(loader, name, contig, start, length)
     assert_array_equal(sequence, expected_sequence)
 
 
@@ -48,13 +48,13 @@ def test_pickle(
     loader: TrackLoader, track_test_data: tuple[Path, str, str, int, int, np.ndarray]
 ) -> None:
     _, name, contig, start, length, expected_sequence = track_test_data
-    sequence = loader.read_sequence(name, contig, start, length)
+    sequence = _read_f32(loader, name, contig, start, length)
     assert_array_equal(sequence, expected_sequence)
 
     pickled_loader = pickle.dumps(loader)
     unpickled_loader = pickle.loads(pickled_loader)
 
-    sequence = unpickled_loader.read_sequence(name, contig, start, length)
+    sequence = _read_f32(unpickled_loader, name, contig, start, length)
     assert_array_equal(sequence, expected_sequence)
 
 
@@ -62,24 +62,22 @@ def test_multiprocess(
     loader: TrackLoader, track_test_data: tuple[Path, str, str, int, int, np.ndarray]
 ) -> None:
     _, name, contig, start, length, expected_sequence = track_test_data
-    sequence = loader.read_sequence(name, contig, start, length)
+    sequence = _read_f32(loader, name, contig, start, length)
     assert_array_equal(sequence, expected_sequence)
 
     with ProcessPoolExecutor(mp_context=multiprocessing.get_context("spawn")) as executor:
-        future = executor.submit(loader.read_sequence, name, contig, start, length)
+        future = executor.submit(_read_f32, loader, name, contig, start, length)
         sequence = future.result()
-
     assert_array_equal(sequence, expected_sequence)
 
 
 def test_cache(tracks_path: Path) -> None:
     ref = TrackLoader(tracks_path, no_cache=True)
-    cache_path = tracks_path / ".track-map-cache"
 
     # Load without cache
-    cache_path.unlink(missing_ok=True)
+    clean_cache(tracks_path)
     nocache = TrackLoader(tracks_path)
-    assert cache_path.exists()
+    assert len(list(tracks_path.glob(".track-map-cache-*"))) == 1
     assert ref.names == nocache.names
     for name in ref.names:
         assert ref.contigs(name) == nocache.contigs(name)
@@ -91,7 +89,12 @@ def test_cache(tracks_path: Path) -> None:
         assert ref.contigs(name) == cache.contigs(name)
 
     # Clean up cache
-    cache_path.unlink()
+    clean_cache(tracks_path)
+
+
+def clean_cache(assemblies_path: Path) -> None:
+    for cache_file in assemblies_path.glob(".track-map-cache-*"):
+        cache_file.unlink(missing_ok=True)
 
 
 def test_min_contig_length(tracks_path: Path, expected_names: list[str]) -> None:
@@ -112,3 +115,10 @@ def test_min_contig_length(tracks_path: Path, expected_names: list[str]) -> None
                 assert (contig, length) not in restricted_contigs
         for contig, length in restricted_contigs:
             assert (contig, length) in ref_contigs
+
+
+def _read_f32(
+    track_loader: TrackLoader, name: str, contig: str, start: int, length: int
+) -> np.ndarray:
+    bytes_data = track_loader.read_sequence(name, contig, start * 4, length * 4)
+    return np.frombuffer(bytes_data, dtype=np.float32)

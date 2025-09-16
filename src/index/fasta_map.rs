@@ -17,7 +17,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use crate::util::{get_name_without_suffix, with_suffix};
+use crate::util::{get_relative_name_without_suffix, with_suffix};
 
 #[derive(Archive, Serialize, Deserialize, Debug, PartialEq, Clone)]
 struct Index {
@@ -27,18 +27,17 @@ struct Index {
 
 #[derive(Archive, Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub(crate) struct FastaMap {
-    dir: String,
     map: BTreeMap<String, Index>,
 }
 
 impl FastaMap {
     pub(crate) fn build(
-        dir: &str,
+        root: &str,
         strict: bool,
         min_contig_length: u64,
         num_workers: Option<usize>,
     ) -> Result<Self> {
-        let paths = glob::glob(format!("{}/*.fna.gz", dir).as_str())?
+        let paths = glob::glob(format!("{}/**/*.fna.gz", root).as_str())?
             .map(|entry| entry.map_err(anyhow::Error::from))
             .collect::<Result<Vec<_>>>()?;
         let num_paths = paths.len();
@@ -52,7 +51,7 @@ impl FastaMap {
                     if i % 100 == 0 && num_paths > 100 {
                         eprintln!("Processed {}/{} FASTA indices", i, num_paths);
                     }
-                    match Self::index_path(map_path, min_contig_length) {
+                    match Self::index_path(map_path, Path::new(root), min_contig_length) {
                         Ok((track_name, index)) => Ok(Some((track_name, index))),
                         Err(e) => {
                             if strict {
@@ -89,14 +88,15 @@ impl FastaMap {
         // Convert Vec<Option<(String, Index)>> to BTreeMap
         let map = results.into_iter().flatten().collect::<BTreeMap<_, _>>();
         eprintln!("Processed {} FASTA indices", num_paths);
-        Ok(FastaMap {
-            map,
-            dir: dir.to_string(),
-        })
+        Ok(FastaMap { map })
     }
 
-    fn index_path(fasta_path: &Path, min_contig_length: u64) -> Result<(String, Index)> {
-        let fasta_name = get_name_without_suffix(fasta_path, ".fna.gz")?;
+    fn index_path(
+        fasta_path: &Path,
+        root: &Path,
+        min_contig_length: u64,
+    ) -> Result<(String, Index)> {
+        let fasta_name = get_relative_name_without_suffix(fasta_path, root, ".fna.gz")?;
         let gzi = BgzfIndex::read(with_suffix(fasta_path.to_path_buf(), ".gzi"))
             .context("Failed to read .gzi")?;
         let fai = FastaIndex::read(
@@ -123,6 +123,7 @@ impl ArchivedFastaMap {
 
     pub(crate) fn query(
         &self,
+        root: &str,
         fasta_name: &str,
         contig: &[u8],
         start: u64,
@@ -134,18 +135,19 @@ impl ArchivedFastaMap {
             .ok_or(anyhow::anyhow!("Fasta name not found"))?;
         let pos = entry.fai.query(contig, start)?;
         let offset = entry.gzi.query(pos)?;
-        let path = Path::new(self.dir.as_ref()).join(format!("{}.fna.gz", fasta_name));
+        let path = Path::new(root).join(format!("{}.fna.gz", fasta_name));
         Ok((path, offset))
     }
 
     pub(crate) fn read_sequence(
         &self,
+        root: &str,
         fasta_name: &str,
         contig: &[u8],
         start: u64,
         length: u64,
     ) -> Result<Array1<u8>> {
-        let (path, pos) = self.query(fasta_name, contig, start)?;
+        let (path, pos) = self.query(root, fasta_name, contig, start)?;
 
         // Open FASTA sequence reader at correct offset
         let mut bgzf_reader = bgzf::Reader::new(File::open(path)?);

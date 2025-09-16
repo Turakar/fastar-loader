@@ -15,6 +15,10 @@ _TEST_REGIONS = [
     dict(name="GCA_000146045.2", contig="BK006949.2", start=200000, length=60),
     dict(name="GCF_000182965.3", contig="NC_032094.1", start=1032000, length=1033292 - 1032000),
     dict(name="GCF_003013715.1", contig="NC_072815.1", start=10000, length=10000),
+    dict(name="foo/GCA_000146045.2", contig="BK006935.2", start=0, length=60),
+    dict(name="foo/GCA_000146045.2", contig="BK006949.2", start=180000, length=60),
+    dict(name="foo/bar/GCF_000182965.3", contig="NC_032094.1", start=2000, length=63),
+    dict(name="foo/bar/GCF_003013715.1", contig="NC_072815.1", start=1000, length=10000),
 ]
 
 
@@ -24,6 +28,9 @@ def expected_names() -> list[str]:
         "GCA_000146045.2",
         "GCF_000182965.3",
         "GCF_003013715.1",
+        "foo/GCA_000146045.2",
+        "foo/bar/GCF_000182965.3",
+        "foo/bar/GCF_003013715.1",
     ]
 
 
@@ -119,7 +126,7 @@ def track_test_data(
     )
     row = index.filter(pl.col("contig") == contig).select(pl.col("offset"))
     assert len(row) > 0
-    offset = row.item() + start
+    offset = row.item() // 4 + start
 
     # read data
     with tempfile.TemporaryDirectory(prefix="fastar-loader-tests-") as tmpdir:
@@ -127,7 +134,9 @@ def track_test_data(
         with open(uncompressed_path, "wb") as f, gzip.open(path, "rb") as gz:
             shutil.copyfileobj(gz, f)
         mmap = np.memmap(uncompressed_path, dtype=np.float32, mode="r")
-        assert mmap.shape[0] == index["offset"].last()
+        last_offset = index["offset"].last()
+        assert isinstance(last_offset, int)
+        assert mmap.shape[0] == last_offset / 4
         assert offset + length <= mmap.shape[0]
         data = mmap[offset : offset + length]
 

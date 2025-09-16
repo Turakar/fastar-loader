@@ -2,8 +2,8 @@ use std::fs::File;
 use std::path::Path;
 
 use crate::index::{ArchivedFastaMap, ArchivedTrackMap, FastaMap, TrackMap};
-use crate::shmem::ShmemArchive;
-use crate::util::get_name_without_suffix;
+use crate::shmem::{type_specific_magic, ShmemArchive};
+use crate::util::get_relative_name_without_suffix;
 use anyhow::{bail, Result};
 
 pub(super) fn load_fasta_map(
@@ -20,7 +20,8 @@ pub(super) fn load_fasta_map(
     if no_cache && force_build {
         bail!("no_cache=true already implies force_build=true");
     }
-    let cache_path = Path::new(dir).join(".fasta-map-cache");
+    let magic_value = type_specific_magic::<ArchivedFastaMap>();
+    let cache_path = Path::new(dir).join(format!(".fasta-map-cache-{:016x}", magic_value));
     if cache_path.exists() && !no_cache && !force_build {
         let expected_names = get_expected_names(dir, ".fna.gz")?;
         match ShmemArchive::read_from_file(&File::open(&cache_path)?) {
@@ -63,7 +64,8 @@ pub(super) fn load_track_map(
     if no_cache && force_build {
         bail!("no_cache=true already implies force_build=true");
     }
-    let cache_path = Path::new(dir).join(".track-map-cache");
+    let magic_value = type_specific_magic::<ArchivedTrackMap>();
+    let cache_path = Path::new(dir).join(format!(".track-map-cache-{:016x}", magic_value));
     if cache_path.exists() && !no_cache && !force_build {
         let expected_names = get_expected_names(dir, ".track.gz")?;
         match ShmemArchive::read_from_file(&File::open(&cache_path)?) {
@@ -93,11 +95,12 @@ pub(super) fn load_track_map(
 }
 
 fn get_expected_names(dir: &str, suffix: &str) -> Result<Vec<String>> {
+    let root_path = Path::new(dir);
     // Get sorted list of files
-    let mut files = glob::glob(format!("{dir}/*{suffix}").as_str())?
+    let mut files = glob::glob(format!("{dir}/**/*{suffix}").as_str())?
         .map(|entry| {
             let path = entry?;
-            let name = get_name_without_suffix(&path, suffix)?;
+            let name = get_relative_name_without_suffix(&path, root_path, suffix)?;
             Ok(name.to_string())
         })
         .collect::<Result<Vec<_>>>()?;

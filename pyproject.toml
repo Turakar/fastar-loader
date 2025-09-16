@@ -30,9 +30,6 @@ build-backend = "maturin"
 features = ["pyo3/extension-module"]
 python-source = "python"
 
-[tool.snakefmt]
-line-length = 100
-
 [tool.ruff]
 line-length = 100
 extend-include = ["*.ipynb"]
@@ -42,3 +39,6 @@ extend-select = ["I"]
 
 [tool.pyright]
 include = ["python/fastar_loader", "tests"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

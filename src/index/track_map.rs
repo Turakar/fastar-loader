@@ -1,5 +1,5 @@
 use crate::index::bgzf_index::BgzfIndex;
-use crate::util::get_name_without_suffix;
+use crate::util::{get_relative_name_without_suffix, with_suffix};
 use anyhow::Context;
 use noodles::bgzf::{self, io::Seek, VirtualPosition};
 
@@ -14,8 +14,6 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use crate::util::with_suffix;
-
 use super::track_index::TrackIndex;
 
 #[derive(Archive, Serialize, Deserialize, Debug, PartialEq, Clone)]
@@ -26,18 +24,17 @@ struct Index {
 
 #[derive(Archive, Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub(crate) struct TrackMap {
-    dir: String,
     map: BTreeMap<String, Index>,
 }
 
 impl TrackMap {
     pub(crate) fn build(
-        dir: &str,
+        root: &str,
         strict: bool,
         min_contig_length: u64,
         num_workers: Option<usize>,
     ) -> Result<Self> {
-        let paths = glob::glob(format!("{}/*.track.gz", dir).as_str())?
+        let paths = glob::glob(format!("{}/**/*.track.gz", root).as_str())?
             .map(|entry| entry.map_err(anyhow::Error::from))
             .collect::<Result<Vec<_>>>()?;
         let num_paths = paths.len();
@@ -51,7 +48,7 @@ impl TrackMap {
                     if i % 100 == 0 && num_paths > 100 {
                         eprintln!("Processed {}/{} track indices", i, num_paths);
                     }
-                    match Self::index_path(track_path, min_contig_length) {
+                    match Self::index_path(track_path, Path::new(root), min_contig_length) {
                         Ok((track_name, index)) => Ok(Some((track_name, index))),
                         Err(e) => {
                             if strict {
@@ -85,14 +82,15 @@ impl TrackMap {
         // Convert Vec<Option<(String, Index)>> to BTreeMap
         let map = results.into_iter().flatten().collect::<BTreeMap<_, _>>();
         eprintln!("Processed {} track indices", num_paths);
-        Ok(TrackMap {
-            map,
-            dir: dir.to_string(),
-        })
+        Ok(TrackMap { map })
     }
 
-    fn index_path(track_path: &Path, min_contig_length: u64) -> Result<(String, Index)> {
-        let track_name = get_name_without_suffix(track_path, ".track.gz")?;
+    fn index_path(
+        track_path: &Path,
+        root: &Path,
+        min_contig_length: u64,
+    ) -> Result<(String, Index)> {
+        let track_name = get_relative_name_without_suffix(track_path, root, ".track.gz")?;
         let gzi = BgzfIndex::read(with_suffix(track_path.to_path_buf(), ".gzi"))
             .context("Failed to read .gzi")?;
         let track_index = TrackIndex::read(
@@ -119,6 +117,7 @@ impl ArchivedTrackMap {
 
     pub(crate) fn query(
         &self,
+        root: &str,
         track_name: &str,
         contig: &[u8],
         start: u64,
@@ -129,35 +128,24 @@ impl ArchivedTrackMap {
             .get(track_name)
             .ok_or(anyhow::anyhow!("Name not found"))?;
         let pos = entry.track_index.query(contig, start)?;
-        let f32_size = std::mem::size_of::<f32>() as u64;
-        let offset = entry.gzi.query(pos * f32_size)?;
-        let path = Path::new(self.dir.as_str()).join(format!("{}.track.gz", track_name));
+        let offset = entry.gzi.query(pos)?;
+        let path = Path::new(root).join(format!("{}.track.gz", track_name));
         Ok((path, offset))
     }
 
     pub(crate) fn read_sequence(
         &self,
+        root: &str,
         track_name: &str,
         contig: &[u8],
         start: u64,
         length: u64,
-    ) -> Result<Array1<f32>> {
-        let (path, pos) = self.query(track_name, contig, start)?;
-
+    ) -> Result<Array1<u8>> {
+        let (path, pos) = self.query(root, track_name, contig, start)?;
         let mut reader = bgzf::Reader::new(File::open(path)?);
         reader.seek_to_virtual_position(pos)?;
-
-        let float_size = std::mem::size_of::<f32>();
-        let total_bytes = (length as usize) * float_size;
-        let mut byte_buffer = vec![0; total_bytes];
-
+        let mut byte_buffer = vec![0; length as usize];
         reader.read_exact(&mut byte_buffer)?;
-
-        let buffer = byte_buffer
-            .chunks_exact(float_size)
-            .map(|b| f32::from_le_bytes(b.try_into().unwrap()))
-            .collect();
-
-        Ok(buffer)
+        Ok(Array1::from(byte_buffer))
     }
 }

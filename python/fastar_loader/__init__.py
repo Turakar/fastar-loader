@@ -55,10 +55,11 @@ class FastarLoader:
     def __getstate__(self) -> dict[str, object]:
         d = self.__dict__.copy()
         d["_index_map"] = self._index_map.handle
+        d["_root"] = self._index_map.root
         return d
 
     def __setstate__(self, state: dict[str, object]) -> None:
-        state["_index_map"] = _rust.FastaMap.from_handle(state["_index_map"])
+        state["_index_map"] = _rust.FastaMap.from_handle(state["_index_map"], state["_root"])
         self.__dict__.update(state)
 
 
@@ -92,8 +93,9 @@ class TrackLoader:
     def __getstate__(self) -> dict[str, object]:
         d = self.__dict__.copy()
         d["_index_map"] = self._index_map.handle
+        d["_root"] = self._index_map.root
         return d
 
     def __setstate__(self, state: dict[str, object]) -> None:
-        state["_index_map"] = _rust.TrackMap.from_handle(state["_index_map"])
+        state["_index_map"] = _rust.TrackMap.from_handle(state["_index_map"], state["_root"])
         self.__dict__.update(state)
