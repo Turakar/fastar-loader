@@ -18,7 +18,7 @@ pub(super) struct BgzfIndex {
 
 impl BgzfIndex {
     pub(super) fn read<P: AsRef<Path>>(path: P) -> Result<Self> {
-        let index: NoodlesIndex = noodles::bgzf::gzi::read(path)?;
+        let index: NoodlesIndex = noodles::bgzf::gzi::fs::read(path)?;
         Ok(BgzfIndex::from(&index))
     }
 }

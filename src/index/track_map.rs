@@ -159,7 +159,7 @@ impl ArchivedTrackMap {
         length: u64,
     ) -> Result<Array1<u8>> {
         let (path, pos) = self.query(root, track_name, contig, start)?;
-        let mut reader = bgzf::Reader::new(File::open(path)?);
+        let mut reader = bgzf::io::Reader::new(File::open(path)?);
         reader.seek_to_virtual_position(pos)?;
         let mut byte_buffer = vec![0; length as usize];
         reader.read_exact(&mut byte_buffer)?;

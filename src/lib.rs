@@ -37,10 +37,10 @@ fn read_sequence_(
     length: usize,
 ) -> Result<Array1<u8>> {
     let bgzf_reader = bgzf::io::indexed_reader::Builder::default()
-        .set_index(bgzf::gzi::read(gzi_path)?)
+        .set_index(bgzf::gzi::fs::read(gzi_path)?)
         .build_from_path(fasta_path)?;
-    let mut fasta_reader = fasta::indexed_reader::Builder::default()
-        .set_index(fasta::fai::read(fai_path)?)
+    let mut fasta_reader = fasta::io::indexed_reader::Builder::default()
+        .set_index(fasta::fai::fs::read(fai_path)?)
         .build_from_reader(bgzf_reader)?;
     let start_pos = Position::try_from(start + 1)?;
     let end_pos = Position::try_from(start + length)?;
@@ -70,7 +70,7 @@ impl PyFastaMap {
         num_workers: Option<usize>,
         show_progress: bool,
     ) -> PyResult<Self> {
-        py.allow_threads(|| {
+        py.detach(|| {
             cache::load_fasta_map(
                 root,
                 strict,
@@ -129,7 +129,7 @@ impl PyFastaMap {
         start: u64,
         length: u64,
     ) -> PyResult<Bound<'py, PyArray1<u8>>> {
-        py.allow_threads(|| {
+        py.detach(|| {
             self.shmem
                 .as_ref()
                 .read_sequence(&self.root, fasta_name, contig, start, length)
@@ -159,7 +159,7 @@ impl PyTrackMap {
         num_workers: Option<usize>,
         show_progress: bool,
     ) -> PyResult<Self> {
-        py.allow_threads(|| {
+        py.detach(|| {
             cache::load_track_map(
                 root,
                 strict,
@@ -217,7 +217,7 @@ impl PyTrackMap {
         start: u64,
         length: u64,
     ) -> PyResult<Bound<'py, PyArray1<u8>>> {
-        py.allow_threads(|| {
+        py.detach(|| {
             self.shmem
                 .as_ref()
                 .read_sequence(&self.root, track_name, contig, start, length)

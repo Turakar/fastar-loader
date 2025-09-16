@@ -20,7 +20,7 @@ pub(super) struct FastaIndex {
 
 impl FastaIndex {
     pub(super) fn read<P: AsRef<Path>>(path: P, min_contig_length: u64) -> Result<Self> {
-        let index: NoodlesIndex = noodles::fasta::fai::read(path)?;
+        let index: NoodlesIndex = noodles::fasta::fai::fs::read(path)?;
         Ok(FastaIndex::from_noodles(&index, min_contig_length))
     }
 }

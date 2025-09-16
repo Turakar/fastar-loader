@@ -167,9 +167,9 @@ impl ArchivedFastaMap {
         let (path, pos) = self.query(root, fasta_name, contig, start)?;
 
         // Open FASTA sequence reader at correct offset
-        let mut bgzf_reader = bgzf::Reader::new(File::open(path)?);
+        let mut bgzf_reader = bgzf::io::Reader::new(File::open(path)?);
         bgzf_reader.seek_to_virtual_position(pos)?;
-        let mut fasta_reader = fasta::Reader::new(bgzf_reader);
+        let mut fasta_reader = fasta::io::Reader::new(bgzf_reader);
         let mut sequence_reader = fasta_reader.sequence_reader();
 
         // Read until we have the desired number of nucleotides
