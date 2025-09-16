@@ -1,14 +1,18 @@
 use anyhow::Result;
+use rkyv::ser::writer::IoWriter;
 use rkyv::util::AlignedVec;
 use rkyv::Serialize;
 use rkyv::{rancor, Portable};
 use shared_memory::{Shmem, ShmemConf};
 use std::collections::hash_map::DefaultHasher;
-use std::fs::File;
+use std::fs::{File, OpenOptions};
 use std::hash::Hasher;
-use std::io::{Read, Write};
+use std::io::{Read, Seek, SeekFrom, Write};
 use std::marker::PhantomData;
+use std::path::Path;
 use std::{any::TypeId, hash::Hash};
+
+const BUFFER_SIZE: usize = 8 * 1024 * 1024; // 8 MB buffer for file operations
 
 pub(crate) struct ShmemArchive<T> {
     shmem: Shmem,
@@ -21,10 +25,21 @@ unsafe impl<T: Send> Sync for ShmemArchive<T> {}
 
 impl<T> ShmemArchive<T>
 where
+    // Trait bounds for rkyv serialization and deserialization, both to AlignedVec and IoWriter
     for<'a> T: Serialize<
         rancor::Strategy<
             rkyv::ser::Serializer<
                 AlignedVec,
+                rkyv::ser::allocator::ArenaHandle<'a>,
+                rkyv::ser::sharing::Share,
+            >,
+            rancor::Error,
+        >,
+    >,
+    for<'a, 'b> T: Serialize<
+        rancor::Strategy<
+            rkyv::ser::Serializer<
+                &'b mut IoWriter<&'b mut File>,
                 rkyv::ser::allocator::ArenaHandle<'a>,
                 rkyv::ser::sharing::Share,
             >,
@@ -99,21 +114,45 @@ where
         })
     }
 
-    pub(crate) fn write_to_file(&self, file: &File) -> Result<()> {
-        // Transmute to byte slice and compute checksum
-        let bytes = unsafe {
-            std::slice::from_raw_parts(
-                self.shmem.as_ptr().add(page_size::get()),
-                self.shmem.len() - page_size::get(),
-            )
-        };
-        let checksum = crc32fast::hash(bytes);
-        // Write
-        let mut writer = std::io::BufWriter::new(file);
-        let magic_value = type_specific_magic::<T::Archived>();
-        writer.write_all(&magic_value.to_le_bytes())?;
-        writer.write_all(&checksum.to_le_bytes())?;
-        writer.write_all(bytes)?;
+    pub(crate) fn write_to_file_direct(data: &T, path: &Path) -> Result<()> {
+        // Open file for writing and reading, truncating if it exists
+        let mut file = OpenOptions::new()
+            .write(true)
+            .read(true)
+            .create(true)
+            .truncate(true)
+            .open(path)?;
+
+        // File layout: magic (u64) | checksum (u32) | data
+        // We will write magic and data first, then compute and write checksum
+        let seek_magic = SeekFrom::Start(0);
+        let seek_checksum = SeekFrom::Start(std::mem::size_of::<u64>() as u64);
+        let seek_data =
+            SeekFrom::Start((std::mem::size_of::<u64>() + std::mem::size_of::<u32>()) as u64);
+
+        // Calculate magic value and write it
+        file.seek(seek_magic)?;
+        file.write_all(&type_specific_magic::<T::Archived>().to_le_bytes())?;
+
+        // Write main data
+        file.seek(seek_data)?;
+        let mut writer = IoWriter::new(&mut file);
+        rkyv::api::high::to_bytes_in::<_, rancor::Error>(data, &mut writer)?;
+
+        // Calculate checksum of main data and write it
+        file.seek(seek_data)?;
+        let mut buffer = vec![0u8; BUFFER_SIZE];
+        let mut hasher = crc32fast::Hasher::new();
+        loop {
+            let bytes_read = file.read(buffer.as_mut_slice())?;
+            if bytes_read == 0 {
+                break;
+            }
+            hasher.update(&buffer[..bytes_read]);
+        }
+        let checksum = hasher.finalize();
+        file.seek(seek_checksum)?;
+        file.write_all(&checksum.to_le_bytes())?;
         Ok(())
     }
 
@@ -188,9 +227,7 @@ pub(crate) fn type_specific_magic<T: 'static>() -> u64 {
 
 #[cfg(test)]
 mod tests {
-    use std::io::Seek;
-    use std::io::Write;
-    use tempfile::tempfile;
+    use tempfile::NamedTempFile;
 
     use crate::index::FastaMap;
 
@@ -240,16 +277,14 @@ mod tests {
     fn test_write_and_read_from_file() {
         // Setup shmem fasta map
         let data = FastaMap::build("test-data/assemblies", true, 0, None, false).unwrap();
-        let container: ShmemArchive<FastaMap> = ShmemArchive::new(data).unwrap();
-        // Write to a temporary file
-        let mut temp_file = tempfile().unwrap();
-        container.write_to_file(&temp_file).unwrap();
-        // Flush and rewind to beginning
-        temp_file.flush().unwrap();
-        temp_file.rewind().unwrap();
-        // Read the shared memory archive back from the file
-        let new_container: ShmemArchive<FastaMap> =
-            ShmemArchive::read_from_file(&temp_file).unwrap();
+        let container: ShmemArchive<FastaMap> = ShmemArchive::new(data.clone()).unwrap();
+        // Write to a temporary file using write_to_file_direct
+        let temp_file = NamedTempFile::new().unwrap();
+        let temp_path = temp_file.path();
+        ShmemArchive::write_to_file_direct(&data, temp_path).unwrap();
+        // Reopen file for reading
+        let file = File::open(temp_path).unwrap();
+        let new_container: ShmemArchive<FastaMap> = ShmemArchive::read_from_file(&file).unwrap();
         assert_eq!(container.as_ref().names(), new_container.as_ref().names());
     }
 
@@ -257,19 +292,18 @@ mod tests {
     fn test_write_and_read_invalid_magic() {
         // Setup shmem fasta map
         let data = FastaMap::build("test-data/assemblies", true, 0, None, false).unwrap();
-        let container: ShmemArchive<FastaMap> = ShmemArchive::new(data).unwrap();
-        // Write to a temporary file
-        let mut temp_file = tempfile().unwrap();
-        container.write_to_file(&temp_file).unwrap();
-        // Flush and rewind to beginning
-        temp_file.flush().unwrap();
-        temp_file.rewind().unwrap();
+        // Write to a temporary file using write_to_file_direct
+        let temp_file = NamedTempFile::new().unwrap();
+        let temp_path = temp_file.path();
+        ShmemArchive::write_to_file_direct(&data, temp_path).unwrap();
         // Corrupt the magic value in the file
-        temp_file.write_all(&[0u8; 8]).unwrap();
-        temp_file.flush().unwrap();
-        temp_file.rewind().unwrap();
+        let mut file = OpenOptions::new().write(true).open(temp_path).unwrap();
+        file.write_all(&[0u8; 8]).unwrap();
+        file.flush().unwrap();
+        drop(file);
         // Attempt to read the shared memory archive back from the file
-        let result: Result<ShmemArchive<FastaMap>> = ShmemArchive::read_from_file(&temp_file);
+        let file = File::open(temp_path).unwrap();
+        let result: Result<ShmemArchive<FastaMap>> = ShmemArchive::read_from_file(&file);
         assert!(result.is_err());
     }
 
@@ -277,16 +311,17 @@ mod tests {
     fn test_truncate_file_to_zero() {
         // Setup shmem fasta map
         let data = FastaMap::build("test-data/assemblies", true, 0, None, false).unwrap();
-        let container: ShmemArchive<FastaMap> = ShmemArchive::new(data).unwrap();
-        // Write to a temporary file
-        let mut temp_file = tempfile().unwrap();
-        container.write_to_file(&temp_file).unwrap();
+        // Write to a temporary file using write_to_file_direct
+        let temp_file = NamedTempFile::new().unwrap();
+        let temp_path = temp_file.path();
+        ShmemArchive::write_to_file_direct(&data, temp_path).unwrap();
         // Truncate the file to size 0
-        temp_file.flush().unwrap();
-        temp_file.set_len(0).unwrap();
-        temp_file.rewind().unwrap();
+        let file = OpenOptions::new().write(true).open(temp_path).unwrap();
+        file.set_len(0).unwrap();
+        drop(file);
         // Attempt to read the shared memory archive back from the file
-        let result: Result<ShmemArchive<FastaMap>> = ShmemArchive::read_from_file(&temp_file);
+        let file = File::open(temp_path).unwrap();
+        let result: Result<ShmemArchive<FastaMap>> = ShmemArchive::read_from_file(&file);
         assert!(result.is_err());
     }
 
@@ -294,27 +329,24 @@ mod tests {
     fn test_write_and_read_corrupted_data() {
         // Setup shmem fasta map
         let data = FastaMap::build("test-data/assemblies", true, 0, None, false).unwrap();
-        let container: ShmemArchive<FastaMap> = ShmemArchive::new(data).unwrap();
-        // Write to a temporary file
-        let mut temp_file = tempfile().unwrap();
-        container.write_to_file(&temp_file).unwrap();
-        // Flush and rewind to beginning
-        temp_file.flush().unwrap();
-        temp_file.rewind().unwrap();
+        // Write to a temporary file using write_to_file_direct
+        let temp_file = NamedTempFile::new().unwrap();
+        let temp_path = temp_file.path();
+        ShmemArchive::write_to_file_direct(&data, temp_path).unwrap();
         // Corrupt the data in the file (not the magic value or checksum)
         let header_len = (std::mem::size_of::<u64>() + std::mem::size_of::<u32>()) as u64;
-        let file_len = temp_file.metadata().unwrap().len();
+        let file_len = std::fs::metadata(temp_path).unwrap().len();
         assert!(file_len > header_len);
         let content_len = file_len - header_len;
-        temp_file
-            .seek(std::io::SeekFrom::Start(header_len))
-            .unwrap();
+        let mut file = OpenOptions::new().write(true).open(temp_path).unwrap();
+        file.seek(SeekFrom::Start(header_len)).unwrap();
         let corrupted = vec![0u8; content_len as usize];
-        temp_file.write_all(&corrupted).unwrap(); // Replace part of the data with zeros
-        temp_file.flush().unwrap();
-        temp_file.rewind().unwrap();
+        file.write_all(&corrupted).unwrap(); // Replace part of the data with zeros
+        file.flush().unwrap();
+        drop(file);
         // Attempt to read the shared memory archive back from the file
-        let result: Result<ShmemArchive<FastaMap>> = ShmemArchive::read_from_file(&temp_file);
+        let file = File::open(temp_path).unwrap();
+        let result: Result<ShmemArchive<FastaMap>> = ShmemArchive::read_from_file(&file);
         assert!(result.is_err());
     }
 }

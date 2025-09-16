@@ -44,10 +44,12 @@ pub(super) fn load_fasta_map(
         }
     }
     let fasta_map = FastaMap::build(dir, strict, min_contig_length, num_workers, show_progress)?;
-    let archive = ShmemArchive::new(fasta_map)?;
-    if !no_cache {
-        archive.write_to_file(&File::create(&cache_path)?)?;
+    if no_cache {
+        return ShmemArchive::new(fasta_map);
     }
+    ShmemArchive::write_to_file_direct(&fasta_map, &cache_path)?;
+    std::mem::drop(fasta_map);
+    let archive = ShmemArchive::read_from_file(&File::open(cache_path)?)?;
     Ok(archive)
 }
 
@@ -89,10 +91,12 @@ pub(super) fn load_track_map(
         }
     }
     let track_map = TrackMap::build(dir, strict, min_contig_length, num_workers, show_progress)?;
-    let archive = ShmemArchive::new(track_map)?;
-    if !no_cache {
-        archive.write_to_file(&File::create(&cache_path)?)?;
+    if no_cache {
+        return ShmemArchive::new(track_map);
     }
+    ShmemArchive::write_to_file_direct(&track_map, &cache_path)?;
+    std::mem::drop(track_map);
+    let archive = ShmemArchive::read_from_file(&File::open(cache_path)?)?;
     Ok(archive)
 }
 
