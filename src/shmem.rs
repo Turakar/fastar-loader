@@ -7,7 +7,7 @@ use shared_memory::{Shmem, ShmemConf};
 use std::collections::hash_map::DefaultHasher;
 use std::fs::{File, OpenOptions};
 use std::hash::Hasher;
-use std::io::{Read, Seek, SeekFrom, Write};
+use std::io::{BufWriter, Read, Seek, SeekFrom, Write};
 use std::marker::PhantomData;
 use std::path::Path;
 use std::{any::TypeId, hash::Hash};
@@ -36,10 +36,10 @@ where
             rancor::Error,
         >,
     >,
-    for<'a, 'b> T: Serialize<
+    for<'a, 'b, 'c, 'd> T: Serialize<
         rancor::Strategy<
             rkyv::ser::Serializer<
-                &'b mut IoWriter<&'b mut File>,
+                &'b mut IoWriter<&'c mut BufWriter<&'d mut File>>,
                 rkyv::ser::allocator::ArenaHandle<'a>,
                 rkyv::ser::sharing::Share,
             >,
@@ -134,10 +134,18 @@ where
         file.seek(seek_magic)?;
         file.write_all(&type_specific_magic::<T::Archived>().to_le_bytes())?;
 
-        // Write main data
+        // Write main data with a buffered writer on top of file.
+        // We drop the buffered writer because it is not suitable for reading,
+        // which we need later for checksum calculation.
         file.seek(seek_data)?;
-        let mut writer = IoWriter::new(&mut file);
-        rkyv::api::high::to_bytes_in::<_, rancor::Error>(data, &mut writer)?;
+        {
+            let mut buf_writer = BufWriter::with_capacity(BUFFER_SIZE, &mut file);
+            rkyv::api::high::to_bytes_in::<_, rancor::Error>(
+                data,
+                &mut IoWriter::new(&mut buf_writer),
+            )?;
+            buf_writer.flush()?;
+        }
 
         // Calculate checksum of main data and write it
         file.seek(seek_data)?;
