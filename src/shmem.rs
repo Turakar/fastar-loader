@@ -164,8 +164,16 @@ where
         Ok(())
     }
 
-    pub(crate) fn read_from_file(file: &File) -> Result<Self> {
+    pub(crate) fn read_from_file(file: &File) -> Result<Option<Self>> {
         let mut reader = std::io::BufReader::new(file);
+
+        // Make sure that file is large enough to contain magic and checksum
+        let file_len = file.metadata()?.len();
+        let header_len = (std::mem::size_of::<u64>() + std::mem::size_of::<u32>()) as u64;
+        if file_len < header_len {
+            eprintln!("File is too small to contain valid data");
+            return Ok(None);
+        }
 
         // Read and verify the magic value
         let mut magic_bytes = vec![0u8; std::mem::size_of::<u64>()];
@@ -173,7 +181,8 @@ where
         let magic = u64::from_le_bytes(magic_bytes.try_into().unwrap());
         let expected_magic = type_specific_magic::<T::Archived>();
         if magic != expected_magic {
-            anyhow::bail!("Invalid magic value in file");
+            eprintln!("Invalid magic value in file");
+            return Ok(None);
         }
 
         // Read the checksum
@@ -182,11 +191,6 @@ where
         let checksum_read = u32::from_le_bytes(checksum_bytes.try_into().unwrap());
 
         // Create shared memory
-        let file_len = file.metadata()?.len();
-        let header_len = (std::mem::size_of::<u64>() + std::mem::size_of::<u32>()) as u64;
-        if file_len < header_len {
-            anyhow::bail!("File is too small to contain valid data");
-        }
         let data_len = file_len - header_len;
         let shmem = ShmemConf::new()
             .size(page_size::get() + data_len as usize)
@@ -213,17 +217,17 @@ where
         // Verify checksum
         let checksum_calculated = crc32fast::hash(bytes);
         if checksum_read != checksum_calculated {
-            anyhow::bail!(
+            eprintln!(
                 "Checksum mismatch: expected {}, computed {}",
-                checksum_read,
-                checksum_calculated
+                checksum_read, checksum_calculated
             );
+            return Ok(None);
         }
 
-        Ok(Self {
+        Ok(Some(Self {
             shmem,
             phantom_t: PhantomData,
-        })
+        }))
     }
 }
 
@@ -292,7 +296,8 @@ mod tests {
         ShmemArchive::write_to_file_direct(&data, temp_path).unwrap();
         // Reopen file for reading
         let file = File::open(temp_path).unwrap();
-        let new_container: ShmemArchive<FastaMap> = ShmemArchive::read_from_file(&file).unwrap();
+        let new_container: ShmemArchive<FastaMap> =
+            ShmemArchive::read_from_file(&file).unwrap().unwrap();
         assert_eq!(container.as_ref().names(), new_container.as_ref().names());
     }
 
@@ -311,8 +316,8 @@ mod tests {
         drop(file);
         // Attempt to read the shared memory archive back from the file
         let file = File::open(temp_path).unwrap();
-        let result: Result<ShmemArchive<FastaMap>> = ShmemArchive::read_from_file(&file);
-        assert!(result.is_err());
+        let result: Option<ShmemArchive<FastaMap>> = ShmemArchive::read_from_file(&file).unwrap();
+        assert!(result.is_none());
     }
 
     #[test]
@@ -329,8 +334,8 @@ mod tests {
         drop(file);
         // Attempt to read the shared memory archive back from the file
         let file = File::open(temp_path).unwrap();
-        let result: Result<ShmemArchive<FastaMap>> = ShmemArchive::read_from_file(&file);
-        assert!(result.is_err());
+        let result: Option<ShmemArchive<FastaMap>> = ShmemArchive::read_from_file(&file).unwrap();
+        assert!(result.is_none());
     }
 
     #[test]
@@ -354,7 +359,7 @@ mod tests {
         drop(file);
         // Attempt to read the shared memory archive back from the file
         let file = File::open(temp_path).unwrap();
-        let result: Result<ShmemArchive<FastaMap>> = ShmemArchive::read_from_file(&file);
-        assert!(result.is_err());
+        let result: Option<ShmemArchive<FastaMap>> = ShmemArchive::read_from_file(&file).unwrap();
+        assert!(result.is_none());
     }
 }

@@ -4,7 +4,7 @@ use std::path::Path;
 use crate::index::{ArchivedFastaMap, ArchivedTrackMap, FastaMap, TrackMap};
 use crate::shmem::{type_specific_magic, ShmemArchive};
 use crate::util::get_relative_name_without_suffix;
-use anyhow::{bail, Result};
+use anyhow::{anyhow, bail, Context, Result};
 
 pub(super) fn load_fasta_map(
     dir: &str,
@@ -25,8 +25,13 @@ pub(super) fn load_fasta_map(
     let cache_path = Path::new(dir).join(format!(".fasta-map-cache-{:016x}", magic_value));
     if cache_path.exists() && !no_cache && !force_build {
         let expected_names = get_expected_names(dir, ".fna.gz")?;
-        match ShmemArchive::read_from_file(&File::open(&cache_path)?) {
-            Ok(archive) => {
+        match ShmemArchive::read_from_file(
+            &File::open(&cache_path)
+                .context(format!("Error opening cache {}", cache_path.display()))?,
+        )
+        .context(format!("Error reading cache {}", cache_path.display()))?
+        {
+            Some(archive) => {
                 let archive_names = (archive.as_ref() as &ArchivedFastaMap).names();
                 if expected_names != archive_names {
                     eprintln!("Cache names do not match expected names. Rebuilding cache.");
@@ -34,11 +39,10 @@ pub(super) fn load_fasta_map(
                     return Ok(archive);
                 }
             }
-            Err(e) => {
+            None => {
                 eprintln!(
-                    "Error loading cache: {}. Rebuilding. Error: {:?}",
-                    cache_path.display(),
-                    e
+                    "Cache file {} is corrupted. Rebuilding cache.",
+                    cache_path.display()
                 );
             }
         }
@@ -50,7 +54,8 @@ pub(super) fn load_fasta_map(
     eprintln!("Writing cache to {}", cache_path.display());
     ShmemArchive::write_to_file_direct(&fasta_map, &cache_path)?;
     std::mem::drop(fasta_map);
-    let archive = ShmemArchive::read_from_file(&File::open(cache_path)?)?;
+    let archive = ShmemArchive::read_from_file(&File::open(cache_path)?)?
+        .ok_or(anyhow!("Newly written cache is corrupted!"))?;
     Ok(archive)
 }
 
@@ -73,8 +78,13 @@ pub(super) fn load_track_map(
     let cache_path = Path::new(dir).join(format!(".track-map-cache-{:016x}", magic_value));
     if cache_path.exists() && !no_cache && !force_build {
         let expected_names = get_expected_names(dir, ".track.gz")?;
-        match ShmemArchive::read_from_file(&File::open(&cache_path)?) {
-            Ok(archive) => {
+        match ShmemArchive::read_from_file(
+            &File::open(&cache_path)
+                .context(format!("Error opening cache {}", cache_path.display()))?,
+        )
+        .context(format!("Error reading cache {}", cache_path.display()))?
+        {
+            Some(archive) => {
                 let archive_names = (archive.as_ref() as &ArchivedTrackMap).names();
                 if expected_names != archive_names {
                     eprintln!("Cache names do not match expected names. Rebuilding cache.");
@@ -82,11 +92,10 @@ pub(super) fn load_track_map(
                     return Ok(archive);
                 }
             }
-            Err(e) => {
+            None => {
                 eprintln!(
-                    "Error loading cache: {}. Rebuilding. Error: {:?}",
-                    cache_path.display(),
-                    e
+                    "Cache file {} is corrupted. Rebuilding.",
+                    cache_path.display()
                 );
             }
         }
@@ -97,7 +106,8 @@ pub(super) fn load_track_map(
     }
     ShmemArchive::write_to_file_direct(&track_map, &cache_path)?;
     std::mem::drop(track_map);
-    let archive = ShmemArchive::read_from_file(&File::open(cache_path)?)?;
+    let archive = ShmemArchive::read_from_file(&File::open(cache_path)?)?
+        .ok_or(anyhow!("Newly written cache is corrupted!"))?;
     Ok(archive)
 }
 
