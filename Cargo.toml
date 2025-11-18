@@ -17,6 +17,7 @@ rkyv = { version = "0.8.10", features = ["pointer_width_64"] }
 shared_memory = "0.12.4"
 rayon = "1.10.0"
 indicatif = "0.18.0"
+memmap2 = "0.9.9"
 
 [dev-dependencies]
 tempfile = "3.19.1"

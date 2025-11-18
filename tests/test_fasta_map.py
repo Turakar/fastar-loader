@@ -11,7 +11,7 @@ from numpy.testing import assert_array_equal
 
 @pytest.fixture()
 def loader(assemblies_path: Path) -> FastarLoader:
-    loader = FastarLoader(assemblies_path, no_cache=True)
+    loader = FastarLoader(assemblies_path, no_cache=True, storage_method="memory")
     return loader
 
 
@@ -31,7 +31,7 @@ def test_custom_num_workers(
     expected_names: list[str],
     fasta_structure: dict[str, list[tuple[str, int]]],
 ) -> None:
-    loader = FastarLoader(assemblies_path, no_cache=True, num_workers=2)
+    loader = FastarLoader(assemblies_path, no_cache=True, storage_method="memory", num_workers=2)
     names = loader.names
     assert len(names) == len(expected_names)
     for name, contigs in fasta_structure.items():
@@ -46,9 +46,14 @@ def test_read_sequence(
     assert_array_equal(sequence, expected_sequence)
 
 
+@pytest.mark.parametrize("storage_method", ["shmem", "mmap"])
 def test_pickle(
-    loader: FastarLoader, fasta_test_data: tuple[Path, str, str, int, int, np.ndarray]
+    assemblies_path: Path,
+    fasta_test_data: tuple[Path, str, str, int, int, np.ndarray],
+    storage_method: str,
 ) -> None:
+    clean_cache(assemblies_path)
+    loader = FastarLoader(assemblies_path, no_cache=False, storage_method=storage_method)
     _, name, contig, start, length, expected_sequence = fasta_test_data
     sequence = loader.read_sequence(name, contig, start, length)
     assert_array_equal(sequence, expected_sequence)
@@ -58,11 +63,17 @@ def test_pickle(
 
     sequence = unpickled_loader.read_sequence(name, contig, start, length)
     assert_array_equal(sequence, expected_sequence)
+    clean_cache(assemblies_path)
 
 
+@pytest.mark.parametrize("storage_method", ["shmem", "mmap"])
 def test_multiprocess(
-    loader: FastarLoader, fasta_test_data: tuple[Path, str, str, int, int, np.ndarray]
+    assemblies_path: Path,
+    fasta_test_data: tuple[Path, str, str, int, int, np.ndarray],
+    storage_method: str,
 ) -> None:
+    clean_cache(assemblies_path)
+    loader = FastarLoader(assemblies_path, no_cache=False, storage_method=storage_method)
     _, name, contig, start, length, expected_sequence = fasta_test_data
     sequence = loader.read_sequence(name, contig, start, length)
     assert_array_equal(sequence, expected_sequence)
@@ -72,21 +83,23 @@ def test_multiprocess(
         sequence = future.result()
 
     assert_array_equal(sequence, expected_sequence)
+    clean_cache(assemblies_path)
 
 
-def test_cache(assemblies_path: Path) -> None:
-    ref = FastarLoader(assemblies_path, no_cache=True)
+@pytest.mark.parametrize("storage_method", ["shmem", "mmap", "memory"])
+def test_cache(assemblies_path: Path, storage_method: str) -> None:
+    ref = FastarLoader(assemblies_path, no_cache=True, storage_method="memory")
 
     # Load without cache
     clean_cache(assemblies_path)
-    nocache = FastarLoader(assemblies_path)
+    nocache = FastarLoader(assemblies_path, storage_method=storage_method)
     assert len(list(assemblies_path.glob(".fasta-map-cache-*"))) == 1
     assert ref.names == nocache.names
     for name in ref.names:
         assert ref.contigs(name) == nocache.contigs(name)
 
     # Load with cache
-    cache = FastarLoader(assemblies_path)
+    cache = FastarLoader(assemblies_path, storage_method=storage_method)
     assert ref.names == cache.names
     for name in ref.names:
         assert ref.contigs(name) == cache.contigs(name)
@@ -102,8 +115,10 @@ def clean_cache(assemblies_path: Path) -> None:
 
 def test_min_contig_length(assemblies_path: Path, expected_names: list[str]) -> None:
     min_length = 1_000_000
-    ref = FastarLoader(assemblies_path, no_cache=True)
-    restricted = FastarLoader(assemblies_path, min_contig_length=min_length, no_cache=True)
+    ref = FastarLoader(assemblies_path, no_cache=True, storage_method="memory")
+    restricted = FastarLoader(
+        assemblies_path, min_contig_length=min_length, no_cache=True, storage_method="memory"
+    )
     for name in expected_names:
         ref_contigs = ref.contigs(name)
         restricted_contigs = restricted.contigs(name)

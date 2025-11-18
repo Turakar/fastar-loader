@@ -35,10 +35,18 @@ class FastarLoader:
         min_contig_length: int = 0,
         num_workers: int | None = None,
         show_progress: bool = True,
+        storage_method: str = "mmap",
     ):
         self._path = str(path)
         self._index_map = _rust.FastaMap.load(
-            self._path, strict, force_build, no_cache, min_contig_length, num_workers, show_progress
+            self._path,
+            strict,
+            force_build,
+            no_cache,
+            min_contig_length,
+            num_workers,
+            show_progress,
+            storage_method,
         )
 
     @property
@@ -55,7 +63,12 @@ class FastarLoader:
 
     def __getstate__(self) -> dict[str, object]:
         d = self.__dict__.copy()
-        d["_index_map"] = self._index_map.handle
+        handle = self._index_map.handle
+        if handle is None:
+            raise RuntimeError(
+                "Cannot serialize FastarLoader with non-shared storage (e.g., in-memory storage)!"
+            )
+        d["_index_map"] = handle
         d["_root"] = self._index_map.root
         return d
 
@@ -74,10 +87,18 @@ class TrackLoader:
         min_contig_length: int = 0,
         num_workers: int | None = None,
         show_progress: bool = True,
+        storage_method: str = "mmap",
     ):
         self._path = str(path)
         self._index_map = _rust.TrackMap.load(
-            self._path, strict, force_build, no_cache, min_contig_length, num_workers, show_progress
+            self._path,
+            strict,
+            force_build,
+            no_cache,
+            min_contig_length,
+            num_workers,
+            show_progress,
+            storage_method,
         )
 
     @property
@@ -94,7 +115,12 @@ class TrackLoader:
 
     def __getstate__(self) -> dict[str, object]:
         d = self.__dict__.copy()
-        d["_index_map"] = self._index_map.handle
+        handle = self._index_map.handle
+        if handle is None:
+            raise RuntimeError(
+                "Cannot serialize TrackLoader with non-shared storage (e.g., in-memory storage)!"
+            )
+        d["_index_map"] = handle
         d["_root"] = self._index_map.root
         return d
 

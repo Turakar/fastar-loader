@@ -1,126 +1,176 @@
-use std::fs::File;
 use std::path::Path;
 
-use crate::index::{ArchivedFastaMap, ArchivedTrackMap, FastaMap, TrackMap};
-use crate::shmem::{type_specific_magic, ShmemArchive};
-use crate::util::get_relative_name_without_suffix;
+use crate::index::{FastaMap, TrackMap};
+use crate::storage::{
+    type_specific_magic, write_direct, ArchiveStorage, DynamicStorage, MemoryStorage, MmapStorage,
+    ShmemStorage,
+};
 use anyhow::{anyhow, bail, Context, Result};
+use rkyv::ser::writer::IoWriter;
+use rkyv::util::AlignedVec;
+use rkyv::Serialize;
+use rkyv::{rancor, Portable};
+use std::fs::File;
+use std::io::BufWriter;
 
-pub(super) fn load_fasta_map(
+pub(crate) trait MapBuilder {
+    fn build(
+        dir: &str,
+        strict: bool,
+        min_contig_length: u64,
+        num_workers: Option<usize>,
+        show_progress: bool,
+    ) -> Result<Self>
+    where
+        Self: Sized;
+}
+
+impl MapBuilder for FastaMap {
+    fn build(
+        dir: &str,
+        strict: bool,
+        min_contig_length: u64,
+        num_workers: Option<usize>,
+        show_progress: bool,
+    ) -> Result<Self> {
+        FastaMap::build(dir, strict, min_contig_length, num_workers, show_progress)
+    }
+}
+
+impl MapBuilder for TrackMap {
+    fn build(
+        dir: &str,
+        strict: bool,
+        min_contig_length: u64,
+        num_workers: Option<usize>,
+        show_progress: bool,
+    ) -> Result<Self> {
+        TrackMap::build(dir, strict, min_contig_length, num_workers, show_progress)
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn load<T>(
     dir: &str,
+    cache_file_name: &str,
     strict: bool,
-    force_build: bool,
-    no_cache: bool,
     min_contig_length: u64,
     num_workers: Option<usize>,
     show_progress: bool,
-) -> Result<ShmemArchive<FastaMap>> {
+    storage_method: &str,
+    no_cache: bool,
+    force_build: bool,
+) -> Result<DynamicStorage<T>>
+where
+    // Trait bounds for rkyv serialization and deserialization, both to AlignedVec and IoWriter
+    for<'a> T: Serialize<
+        rancor::Strategy<
+            rkyv::ser::Serializer<
+                AlignedVec,
+                rkyv::ser::allocator::ArenaHandle<'a>,
+                rkyv::ser::sharing::Share,
+            >,
+            rancor::Error,
+        >,
+    >,
+    for<'a, 'b, 'c, 'd> T: Serialize<
+        rancor::Strategy<
+            rkyv::ser::Serializer<
+                &'b mut IoWriter<&'c mut BufWriter<&'d mut File>>,
+                rkyv::ser::allocator::ArenaHandle<'a>,
+                rkyv::ser::sharing::Share,
+            >,
+            rancor::Error,
+        >,
+    >,
+    T: Sync + Send,
+    T::Archived: 'static + Portable + Send + Sync,
+    T: MapBuilder + 'static,
+{
     if !strict && !no_cache {
         bail!("strict=false requires no_cache=true");
     }
     if no_cache && force_build {
         bail!("no_cache=true already implies force_build=true");
     }
-    let magic_value = type_specific_magic::<ArchivedFastaMap>();
-    let cache_path = Path::new(dir).join(format!(".fasta-map-cache-{:016x}", magic_value));
+    if no_cache && storage_method == "mmap" {
+        bail!("storage_method=mmap requires no_cache=false");
+    }
+    let cache_path = Path::new(dir).join(format!(
+        "{}-{:016x}",
+        cache_file_name,
+        type_specific_magic::<T>()
+    ));
     if cache_path.exists() && !no_cache && !force_build {
-        let expected_names = get_expected_names(dir, ".fna.gz")?;
-        match ShmemArchive::read_from_file(
-            &File::open(&cache_path)
-                .context(format!("Error opening cache {}", cache_path.display()))?,
-        )
-        .context(format!("Error reading cache {}", cache_path.display()))?
-        {
-            Some(archive) => {
-                let archive_names = (archive.as_ref() as &ArchivedFastaMap).names();
-                if expected_names != archive_names {
-                    eprintln!("Cache names do not match expected names. Rebuilding cache.");
-                } else {
-                    return Ok(archive);
+        if storage_method == "memory" {
+            match ArchiveStorage::<T, MemoryStorage>::load(&cache_path)
+                .context(format!("Error reading cache {}", cache_path.display()))?
+            {
+                Some(archive) => {
+                    return Ok(archive.into());
+                }
+                None => {
+                    eprintln!("Cache file {} is corrupted.", cache_path.display());
                 }
             }
-            None => {
-                eprintln!(
-                    "Cache file {} is corrupted. Rebuilding cache.",
-                    cache_path.display()
-                );
+        } else if storage_method == "shmem" {
+            match ArchiveStorage::<T, ShmemStorage>::load(&cache_path)
+                .context(format!("Error reading cache {}", cache_path.display()))?
+            {
+                Some(archive) => {
+                    return Ok(archive.into());
+                }
+                None => {
+                    eprintln!("Cache file {} is corrupted.", cache_path.display());
+                }
             }
+        } else if storage_method == "mmap" {
+            match ArchiveStorage::<T, MmapStorage>::load(&cache_path)
+                .context(format!("Error reading cache {}", cache_path.display()))?
+            {
+                Some(archive) => {
+                    return Ok(archive.into());
+                }
+                None => {
+                    eprintln!("Cache file {} is corrupted.", cache_path.display());
+                }
+            }
+        } else {
+            bail!("Unknown storage method: {}", storage_method);
         }
     }
-    let fasta_map = FastaMap::build(dir, strict, min_contig_length, num_workers, show_progress)?;
+    let map = T::build(dir, strict, min_contig_length, num_workers, show_progress)?;
     if no_cache {
-        return ShmemArchive::new(fasta_map);
+        if storage_method == "memory" {
+            let archive = ArchiveStorage::<T, MemoryStorage>::new(map)
+                .context("Error creating memory storage archive")?;
+            return Ok(archive.into());
+        } else if storage_method == "shmem" {
+            let archive = ArchiveStorage::<T, ShmemStorage>::new(map)
+                .context("Error creating shmem storage archive")?;
+            return Ok(archive.into());
+        } else if storage_method == "mmap" {
+            bail!("mmap storage requires no_cache=false");
+        } else {
+            bail!("Unknown storage method: {}", storage_method);
+        }
     }
     eprintln!("Writing cache to {}", cache_path.display());
-    ShmemArchive::write_to_file_direct(&fasta_map, &cache_path)?;
-    std::mem::drop(fasta_map);
-    let archive = ShmemArchive::read_from_file(&File::open(cache_path)?)?
-        .ok_or(anyhow!("Newly written cache is corrupted!"))?;
-    Ok(archive)
-}
-
-pub(super) fn load_track_map(
-    dir: &str,
-    strict: bool,
-    force_build: bool,
-    no_cache: bool,
-    min_contig_length: u64,
-    num_workers: Option<usize>,
-    show_progress: bool,
-) -> Result<ShmemArchive<TrackMap>> {
-    if !strict && !no_cache {
-        bail!("strict=false requires no_cache=true");
+    write_direct(&map, &cache_path)?;
+    std::mem::drop(map);
+    if storage_method == "memory" {
+        let archive = ArchiveStorage::<T, MemoryStorage>::load(&cache_path)?
+            .ok_or(anyhow!("Newly written cache is corrupted!"))?;
+        Ok(archive.into())
+    } else if storage_method == "shmem" {
+        let archive = ArchiveStorage::<T, ShmemStorage>::load(&cache_path)?
+            .ok_or(anyhow!("Newly written cache is corrupted!"))?;
+        Ok(archive.into())
+    } else if storage_method == "mmap" {
+        let archive = ArchiveStorage::<T, MmapStorage>::load(&cache_path)?
+            .ok_or(anyhow!("Newly written cache is corrupted!"))?;
+        Ok(archive.into())
+    } else {
+        bail!("Unknown storage method: {}", storage_method);
     }
-    if no_cache && force_build {
-        bail!("no_cache=true already implies force_build=true");
-    }
-    let magic_value = type_specific_magic::<ArchivedTrackMap>();
-    let cache_path = Path::new(dir).join(format!(".track-map-cache-{:016x}", magic_value));
-    if cache_path.exists() && !no_cache && !force_build {
-        let expected_names = get_expected_names(dir, ".track.gz")?;
-        match ShmemArchive::read_from_file(
-            &File::open(&cache_path)
-                .context(format!("Error opening cache {}", cache_path.display()))?,
-        )
-        .context(format!("Error reading cache {}", cache_path.display()))?
-        {
-            Some(archive) => {
-                let archive_names = (archive.as_ref() as &ArchivedTrackMap).names();
-                if expected_names != archive_names {
-                    eprintln!("Cache names do not match expected names. Rebuilding cache.");
-                } else {
-                    return Ok(archive);
-                }
-            }
-            None => {
-                eprintln!(
-                    "Cache file {} is corrupted. Rebuilding.",
-                    cache_path.display()
-                );
-            }
-        }
-    }
-    let track_map = TrackMap::build(dir, strict, min_contig_length, num_workers, show_progress)?;
-    if no_cache {
-        return ShmemArchive::new(track_map);
-    }
-    ShmemArchive::write_to_file_direct(&track_map, &cache_path)?;
-    std::mem::drop(track_map);
-    let archive = ShmemArchive::read_from_file(&File::open(cache_path)?)?
-        .ok_or(anyhow!("Newly written cache is corrupted!"))?;
-    Ok(archive)
-}
-
-fn get_expected_names(dir: &str, suffix: &str) -> Result<Vec<String>> {
-    let root_path = Path::new(dir);
-    // Get sorted list of files
-    let mut files = glob::glob(format!("{dir}/**/*{suffix}").as_str())?
-        .map(|entry| {
-            let path = entry?;
-            let name = get_relative_name_without_suffix(&path, root_path, suffix)?;
-            Ok(name.to_string())
-        })
-        .collect::<Result<Vec<_>>>()?;
-    files.sort();
-    Ok(files)
 }

@@ -1,6 +1,6 @@
 mod cache;
 mod index;
-mod shmem;
+mod storage;
 mod util;
 
 use anyhow::Result;
@@ -11,7 +11,8 @@ use noodles::fasta;
 use numpy::ndarray::Array1;
 use numpy::{IntoPyArray, PyArray1};
 use pyo3::{exceptions::PyRuntimeError, prelude::*};
-use shmem::ShmemArchive;
+
+use crate::storage::DynamicStorage;
 
 #[pyfunction]
 fn read_sequence<'py>(
@@ -52,7 +53,7 @@ fn read_sequence_(
 
 #[pyclass(frozen, name = "FastaMap")]
 struct PyFastaMap {
-    shmem: ShmemArchive<FastaMap>,
+    storage: DynamicStorage<FastaMap>,
     root: String,
 }
 
@@ -69,28 +70,31 @@ impl PyFastaMap {
         min_contig_length: u64,
         num_workers: Option<usize>,
         show_progress: bool,
+        storage_method: &str,
     ) -> PyResult<Self> {
         py.detach(|| {
-            cache::load_fasta_map(
+            cache::load::<FastaMap>(
                 root,
+                ".fasta-map-cache",
                 strict,
-                force_build,
-                no_cache,
                 min_contig_length,
                 num_workers,
                 show_progress,
+                storage_method,
+                no_cache,
+                force_build,
             )
         })
-        .map(|shmem| PyFastaMap {
-            shmem,
+        .map(|storage| PyFastaMap {
+            storage,
             root: root.to_string(),
         })
         .map_err(|e| PyRuntimeError::new_err(format!("{:?}", e)))
     }
 
     #[getter]
-    fn handle(&self) -> PyResult<&str> {
-        let handle = self.shmem.get_os_id();
+    fn handle(&self) -> PyResult<Option<String>> {
+        let handle = self.storage.get_id();
         Ok(handle)
     }
 
@@ -101,9 +105,9 @@ impl PyFastaMap {
 
     #[staticmethod]
     fn from_handle(handle: &str, root: &str) -> PyResult<Self> {
-        ShmemArchive::from_os_id(handle)
-            .map(|shmem| PyFastaMap {
-                shmem,
+        DynamicStorage::<FastaMap>::from_id(handle)
+            .map(|storage| PyFastaMap {
+                storage,
                 root: root.to_string(),
             })
             .map_err(|e| PyRuntimeError::new_err(format!("{:?}", e)))
@@ -111,11 +115,11 @@ impl PyFastaMap {
 
     #[getter]
     fn names(&self) -> PyResult<Vec<&str>> {
-        Ok(self.shmem.as_ref().names())
+        Ok(self.storage.as_ref().names())
     }
 
     fn contigs(&self, fasta_name: &str) -> PyResult<Vec<(&[u8], u64)>> {
-        self.shmem
+        self.storage
             .as_ref()
             .contigs(fasta_name)
             .map_err(|e| PyRuntimeError::new_err(format!("Error getting contigs: {:?}", e)))
@@ -130,7 +134,7 @@ impl PyFastaMap {
         length: u64,
     ) -> PyResult<Bound<'py, PyArray1<u8>>> {
         py.detach(|| {
-            self.shmem
+            self.storage
                 .as_ref()
                 .read_sequence(&self.root, fasta_name, contig, start, length)
         })
@@ -141,7 +145,7 @@ impl PyFastaMap {
 
 #[pyclass(frozen, name = "TrackMap")]
 struct PyTrackMap {
-    shmem: ShmemArchive<TrackMap>,
+    storage: DynamicStorage<TrackMap>,
     root: String,
 }
 
@@ -158,28 +162,31 @@ impl PyTrackMap {
         min_contig_length: u64,
         num_workers: Option<usize>,
         show_progress: bool,
+        storage_method: &str,
     ) -> PyResult<Self> {
         py.detach(|| {
-            cache::load_track_map(
+            cache::load::<TrackMap>(
                 root,
+                ".track-map-cache",
                 strict,
-                force_build,
-                no_cache,
                 min_contig_length,
                 num_workers,
                 show_progress,
+                storage_method,
+                no_cache,
+                force_build,
             )
         })
-        .map(|shmem| PyTrackMap {
-            shmem,
+        .map(|storage| PyTrackMap {
+            storage,
             root: root.to_string(),
         })
         .map_err(|e| PyRuntimeError::new_err(format!("{:?}", e)))
     }
 
     #[getter]
-    fn handle(&self) -> PyResult<&str> {
-        Ok(self.shmem.get_os_id())
+    fn handle(&self) -> PyResult<Option<String>> {
+        Ok(self.storage.get_id())
     }
 
     #[getter]
@@ -189,9 +196,9 @@ impl PyTrackMap {
 
     #[staticmethod]
     fn from_handle(handle: &str, root: &str) -> PyResult<Self> {
-        ShmemArchive::from_os_id(handle)
-            .map(|shmem| PyTrackMap {
-                shmem,
+        DynamicStorage::<TrackMap>::from_id(handle)
+            .map(|storage| PyTrackMap {
+                storage,
                 root: root.to_string(),
             })
             .map_err(|e| PyRuntimeError::new_err(format!("{:?}", e)))
@@ -199,11 +206,11 @@ impl PyTrackMap {
 
     #[getter]
     fn names(&self) -> PyResult<Vec<&str>> {
-        Ok(self.shmem.as_ref().names())
+        Ok(self.storage.as_ref().names())
     }
 
     fn contigs(&self, fasta_name: &str) -> PyResult<Vec<(&[u8], u64)>> {
-        self.shmem
+        self.storage
             .as_ref()
             .contigs(fasta_name)
             .map_err(|e| PyRuntimeError::new_err(format!("Error getting contigs: {:?}", e)))
@@ -218,7 +225,7 @@ impl PyTrackMap {
         length: u64,
     ) -> PyResult<Bound<'py, PyArray1<u8>>> {
         py.detach(|| {
-            self.shmem
+            self.storage
                 .as_ref()
                 .read_sequence(&self.root, track_name, contig, start, length)
         })

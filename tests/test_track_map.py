@@ -11,7 +11,7 @@ from numpy.testing import assert_array_equal
 
 @pytest.fixture()
 def loader(tracks_path: Path) -> TrackLoader:
-    loader = TrackLoader(tracks_path, no_cache=True)
+    loader = TrackLoader(tracks_path, no_cache=True, storage_method="memory")
     return loader
 
 
@@ -29,7 +29,7 @@ def test_structure(loader: TrackLoader, track_structure: dict[str, list[tuple[st
 def test_custom_num_workers(
     tracks_path: Path, expected_names: list[str], track_structure: dict[str, list[tuple[str, int]]]
 ) -> None:
-    loader = TrackLoader(tracks_path, no_cache=True, num_workers=2)
+    loader = TrackLoader(tracks_path, no_cache=True, storage_method="memory", num_workers=2)
     names = loader.names
     assert len(names) == len(expected_names)
     for name, contigs in track_structure.items():
@@ -44,9 +44,14 @@ def test_read_sequence(
     assert_array_equal(sequence, expected_sequence)
 
 
+@pytest.mark.parametrize("storage_method", ["shmem", "mmap"])
 def test_pickle(
-    loader: TrackLoader, track_test_data: tuple[Path, str, str, int, int, np.ndarray]
+    tracks_path: Path,
+    track_test_data: tuple[Path, str, str, int, int, np.ndarray],
+    storage_method: str,
 ) -> None:
+    clean_cache(tracks_path)
+    loader = TrackLoader(tracks_path, no_cache=False, storage_method=storage_method)
     _, name, contig, start, length, expected_sequence = track_test_data
     sequence = _read_f32(loader, name, contig, start, length)
     assert_array_equal(sequence, expected_sequence)
@@ -56,11 +61,17 @@ def test_pickle(
 
     sequence = _read_f32(unpickled_loader, name, contig, start, length)
     assert_array_equal(sequence, expected_sequence)
+    clean_cache(tracks_path)
 
 
+@pytest.mark.parametrize("storage_method", ["shmem", "mmap"])
 def test_multiprocess(
-    loader: TrackLoader, track_test_data: tuple[Path, str, str, int, int, np.ndarray]
+    tracks_path: Path,
+    track_test_data: tuple[Path, str, str, int, int, np.ndarray],
+    storage_method: str,
 ) -> None:
+    clean_cache(tracks_path)
+    loader = TrackLoader(tracks_path, no_cache=False, storage_method=storage_method)
     _, name, contig, start, length, expected_sequence = track_test_data
     sequence = _read_f32(loader, name, contig, start, length)
     assert_array_equal(sequence, expected_sequence)
@@ -69,21 +80,23 @@ def test_multiprocess(
         future = executor.submit(_read_f32, loader, name, contig, start, length)
         sequence = future.result()
     assert_array_equal(sequence, expected_sequence)
+    clean_cache(tracks_path)
 
 
-def test_cache(tracks_path: Path) -> None:
-    ref = TrackLoader(tracks_path, no_cache=True)
+@pytest.mark.parametrize("storage_method", ["shmem", "mmap", "memory"])
+def test_cache(tracks_path: Path, storage_method: str) -> None:
+    ref = TrackLoader(tracks_path, no_cache=True, storage_method="memory")
 
     # Load without cache
     clean_cache(tracks_path)
-    nocache = TrackLoader(tracks_path)
+    nocache = TrackLoader(tracks_path, storage_method=storage_method)
     assert len(list(tracks_path.glob(".track-map-cache-*"))) == 1
     assert ref.names == nocache.names
     for name in ref.names:
         assert ref.contigs(name) == nocache.contigs(name)
 
     # Load with cache
-    cache = TrackLoader(tracks_path)
+    cache = TrackLoader(tracks_path, storage_method=storage_method)
     assert ref.names == cache.names
     for name in ref.names:
         assert ref.contigs(name) == cache.contigs(name)
@@ -99,8 +112,10 @@ def clean_cache(assemblies_path: Path) -> None:
 
 def test_min_contig_length(tracks_path: Path, expected_names: list[str]) -> None:
     min_length = 1_000_000
-    ref = TrackLoader(tracks_path, no_cache=True)
-    restricted = TrackLoader(tracks_path, min_contig_length=min_length, no_cache=True)
+    ref = TrackLoader(tracks_path, no_cache=True, storage_method="memory")
+    restricted = TrackLoader(
+        tracks_path, min_contig_length=min_length, no_cache=True, storage_method="memory"
+    )
     print(ref.names)
     print(restricted.names)
     for name in expected_names:
