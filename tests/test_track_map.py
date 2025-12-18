@@ -36,6 +36,19 @@ def test_custom_num_workers(
         assert loader.contigs(name) == contigs
 
 
+def test_custom_names(
+    tracks_path: Path,
+    expected_names: list[str],
+    track_structure: dict[str, list[tuple[str, int]]],
+) -> None:
+    loader = TrackLoader(tracks_path, names=expected_names[:2])
+    names = loader.names
+    assert len(names) == len(expected_names[:2])
+    for name, contigs in track_structure.items():
+        if name in expected_names[:2]:
+            assert loader.contigs(name) == contigs
+
+
 def test_read_sequence(
     loader: TrackLoader, track_test_data: tuple[Path, str, str, int, int, np.ndarray]
 ) -> None:

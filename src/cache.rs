@@ -20,6 +20,7 @@ pub(crate) trait MapBuilder {
         min_contig_length: u64,
         num_workers: Option<usize>,
         show_progress: bool,
+        names_list: Option<Vec<String>>,
     ) -> Result<Self>
     where
         Self: Sized;
@@ -32,8 +33,16 @@ impl MapBuilder for FastaMap {
         min_contig_length: u64,
         num_workers: Option<usize>,
         show_progress: bool,
+        names_list: Option<Vec<String>>,
     ) -> Result<Self> {
-        FastaMap::build(dir, strict, min_contig_length, num_workers, show_progress)
+        FastaMap::build(
+            dir,
+            strict,
+            min_contig_length,
+            num_workers,
+            show_progress,
+            names_list,
+        )
     }
 }
 
@@ -44,8 +53,16 @@ impl MapBuilder for TrackMap {
         min_contig_length: u64,
         num_workers: Option<usize>,
         show_progress: bool,
+        names_list: Option<Vec<String>>,
     ) -> Result<Self> {
-        TrackMap::build(dir, strict, min_contig_length, num_workers, show_progress)
+        TrackMap::build(
+            dir,
+            strict,
+            min_contig_length,
+            num_workers,
+            show_progress,
+            names_list,
+        )
     }
 }
 
@@ -60,6 +77,7 @@ pub(crate) fn load<T>(
     storage_method: &str,
     no_cache: bool,
     force_build: bool,
+    names: Option<Vec<String>>,
 ) -> Result<DynamicStorage<T>>
 where
     // Trait bounds for rkyv serialization and deserialization, both to AlignedVec and IoWriter
@@ -95,6 +113,9 @@ where
     }
     if no_cache && storage_method == "mmap" {
         bail!("storage_method=mmap requires no_cache=false");
+    }
+    if names.is_some() && !no_cache {
+        bail!("names_list can only be used with no_cache=true");
     }
     let cache_path = Path::new(dir).join(format!(
         "{}-{:016x}",
@@ -139,7 +160,14 @@ where
             bail!("Unknown storage method: {}", storage_method);
         }
     }
-    let map = T::build(dir, strict, min_contig_length, num_workers, show_progress)?;
+    let map = T::build(
+        dir,
+        strict,
+        min_contig_length,
+        num_workers,
+        show_progress,
+        names,
+    )?;
     if no_cache {
         if storage_method == "memory" {
             let archive = ArchiveStorage::<T, MemoryStorage>::new(map)

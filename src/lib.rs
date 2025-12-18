@@ -71,6 +71,7 @@ impl PyFastaMap {
         num_workers: Option<usize>,
         show_progress: bool,
         storage_method: &str,
+        names_list: Option<Vec<String>>,
     ) -> PyResult<Self> {
         py.detach(|| {
             cache::load::<FastaMap>(
@@ -83,6 +84,7 @@ impl PyFastaMap {
                 storage_method,
                 no_cache,
                 force_build,
+                names_list,
             )
         })
         .map(|storage| PyFastaMap {
@@ -163,6 +165,7 @@ impl PyTrackMap {
         num_workers: Option<usize>,
         show_progress: bool,
         storage_method: &str,
+        names: Option<Vec<String>>,
     ) -> PyResult<Self> {
         py.detach(|| {
             cache::load::<TrackMap>(
@@ -175,6 +178,7 @@ impl PyTrackMap {
                 storage_method,
                 no_cache,
                 force_build,
+                names,
             )
         })
         .map(|storage| PyTrackMap {

@@ -38,6 +38,19 @@ def test_custom_num_workers(
         assert loader.contigs(name) == contigs
 
 
+def test_custom_names(
+    assemblies_path: Path,
+    expected_names: list[str],
+    fasta_structure: dict[str, list[tuple[str, int]]],
+) -> None:
+    loader = FastarLoader(assemblies_path, names=expected_names[:2])
+    names = loader.names
+    assert len(names) == len(expected_names[:2])
+    for name, contigs in fasta_structure.items():
+        if name in expected_names[:2]:
+            assert loader.contigs(name) == contigs
+
+
 def test_read_sequence(
     loader: FastarLoader, fasta_test_data: tuple[Path, str, str, int, int, np.ndarray]
 ) -> None:

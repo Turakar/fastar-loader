@@ -18,7 +18,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use crate::util::{get_relative_name_without_suffix, with_suffix};
+use crate::util::get_relative_name_without_suffix;
 
 #[derive(Archive, Serialize, Deserialize, Debug, PartialEq, Clone)]
 struct Index {
@@ -38,15 +38,24 @@ impl FastaMap {
         min_contig_length: u64,
         num_workers: Option<usize>,
         show_progress: bool,
+        names: Option<Vec<String>>,
     ) -> Result<Self> {
-        let paths = glob::glob(format!("{}/**/*.fna.gz", root).as_str())?
-            .map(|entry| entry.map_err(anyhow::Error::from))
-            .collect::<Result<Vec<_>>>()?;
-        let num_paths = paths.len();
+        let root_path = Path::new(root);
+        let names = match names {
+            None => glob::glob(format!("{}/**/*.fna.gz", root).as_str())?
+                .map(|entry| {
+                    entry.map_err(anyhow::Error::from).and_then(|path| {
+                        get_relative_name_without_suffix(&path, root_path, ".fna.gz")
+                    })
+                })
+                .collect::<Result<Vec<_>>>()?,
+            Some(names) => names,
+        };
+        let num_names = names.len();
 
         // Progress bar setup
         let pb = if show_progress {
-            let pb = ProgressBar::new(num_paths as u64);
+            let pb = ProgressBar::new(num_names as u64);
             pb.set_style(
                 ProgressStyle::with_template(
                     "[{elapsed_precise}] [{bar:40.cyan/blue}] {pos}/{len} {msg}",
@@ -61,22 +70,18 @@ impl FastaMap {
 
         // Build indices in parallel using rayon. If num_workers is set, use a custom thread pool.
         let build_indices = || {
-            let results: Result<Vec<Option<(String, Index)>>, anyhow::Error> = paths
+            let results: Result<Vec<Option<(String, Index)>>, anyhow::Error> = names
                 .par_iter()
-                .map(|map_path| {
-                    let res = match Self::index_path(map_path, Path::new(root), min_contig_length) {
-                        Ok((track_name, index)) => Ok(Some((track_name, index))),
+                .map(|name| {
+                    let res = match Self::index_name(name, Path::new(root), min_contig_length) {
+                        Ok(index) => Ok(Some((name.to_string(), index))),
                         Err(e) => {
                             if strict {
-                                Err(e.context(format!(
-                                    "Error processing track! {}",
-                                    map_path.display()
-                                )))
+                                Err(e.context(format!("Error processing track! {}", name)))
                             } else {
                                 eprintln!(
                                     "Error processing track: {}. Skipping. Error: {:?}",
-                                    map_path.display(),
-                                    e
+                                    name, e
                                 );
                                 Ok(None)
                             }
@@ -108,20 +113,12 @@ impl FastaMap {
         Ok(FastaMap { map })
     }
 
-    fn index_path(
-        fasta_path: &Path,
-        root: &Path,
-        min_contig_length: u64,
-    ) -> Result<(String, Index)> {
-        let fasta_name = get_relative_name_without_suffix(fasta_path, root, ".fna.gz")?;
-        let gzi = BgzfIndex::read(with_suffix(fasta_path.to_path_buf(), ".gzi"))
+    fn index_name(name: &str, root: &Path, min_contig_length: u64) -> Result<Index> {
+        let gzi = BgzfIndex::read(root.join(format!("{}.fna.gz.gzi", name)))
             .context("Failed to read .gzi")?;
-        let fai = FastaIndex::read(
-            with_suffix(fasta_path.to_path_buf(), ".fai"),
-            min_contig_length,
-        )
-        .context("Failed to read .fai")?;
-        Ok((fasta_name, Index { gzi, fai }))
+        let fai = FastaIndex::read(root.join(format!("{}.fna.gz.fai", name)), min_contig_length)
+            .context("Failed to read .fai")?;
+        Ok(Index { gzi, fai })
     }
 }
 
@@ -134,7 +131,7 @@ impl ArchivedFastaMap {
         let entry = self
             .map
             .get(name)
-            .ok_or(anyhow::anyhow!("Fasta name not found"))?;
+            .ok_or(anyhow::anyhow!(format!("Fasta name not found: {}", name)))?;
         Ok(entry.fai.contigs())
     }
 

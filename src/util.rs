@@ -1,11 +1,5 @@
 use anyhow::{anyhow, Result};
-use std::path::{Path, PathBuf};
-
-pub(crate) fn with_suffix(p: PathBuf, s: &str) -> PathBuf {
-    let mut p = p.into_os_string();
-    p.push(s);
-    p.into()
-}
+use std::path::Path;
 
 /// Get relative path from root, remove suffix, normalize path separators
 pub(crate) fn get_relative_name_without_suffix(

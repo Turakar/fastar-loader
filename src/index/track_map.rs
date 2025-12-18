@@ -1,5 +1,5 @@
 use crate::index::bgzf_index::BgzfIndex;
-use crate::util::{get_relative_name_without_suffix, with_suffix};
+use crate::util::get_relative_name_without_suffix;
 use anyhow::Context;
 use noodles::bgzf::{self, io::Seek, VirtualPosition};
 
@@ -35,15 +35,24 @@ impl TrackMap {
         min_contig_length: u64,
         num_workers: Option<usize>,
         show_progress: bool,
+        names: Option<Vec<String>>,
     ) -> Result<Self> {
-        let paths = glob::glob(format!("{}/**/*.track.gz", root).as_str())?
-            .map(|entry| entry.map_err(anyhow::Error::from))
-            .collect::<Result<Vec<_>>>()?;
-        let num_paths = paths.len();
+        let root_path = Path::new(root);
+        let names = match names {
+            None => glob::glob(format!("{}/**/*.track.gz", root).as_str())?
+                .map(|entry| {
+                    entry.map_err(anyhow::Error::from).and_then(|path| {
+                        get_relative_name_without_suffix(&path, root_path, ".track.gz")
+                    })
+                })
+                .collect::<Result<Vec<_>>>()?,
+            Some(names) => names,
+        };
+        let num_names = names.len();
 
         // Progress bar setup
         let pb = if show_progress {
-            let pb = ProgressBar::new(num_paths as u64);
+            let pb = ProgressBar::new(num_names as u64);
             pb.set_style(
                 ProgressStyle::with_template(
                     "[{elapsed_precise}] [{bar:40.cyan/blue}] {pos}/{len} {msg}",
@@ -56,21 +65,20 @@ impl TrackMap {
             None
         };
 
+        // Build indices in parallel using rayon. If num_workers is set, use a custom thread pool.
         let build_indices = || {
-            let results: Result<Vec<Option<(String, Index)>>, anyhow::Error> = paths
+            let results: Result<Vec<Option<(String, Index)>>, anyhow::Error> = names
                 .par_iter()
-                .map(|track_path| {
-                    let res = match Self::index_path(track_path, Path::new(root), min_contig_length)
-                    {
-                        Ok((track_name, index)) => Ok(Some((track_name, index))),
+                .map(|name| {
+                    let res = match Self::index_name(name, Path::new(root), min_contig_length) {
+                        Ok(index) => Ok(Some((name.to_string(), index))),
                         Err(e) => {
                             if strict {
-                                Err(e)
+                                Err(e.context(format!("Error processing track! {}", name)))
                             } else {
                                 eprintln!(
                                     "Error processing track: {}. Skipping. Error: {:?}",
-                                    track_path.display(),
-                                    e
+                                    name, e
                                 );
                                 Ok(None)
                             }
@@ -102,20 +110,15 @@ impl TrackMap {
         Ok(TrackMap { map })
     }
 
-    fn index_path(
-        track_path: &Path,
-        root: &Path,
-        min_contig_length: u64,
-    ) -> Result<(String, Index)> {
-        let track_name = get_relative_name_without_suffix(track_path, root, ".track.gz")?;
-        let gzi = BgzfIndex::read(with_suffix(track_path.to_path_buf(), ".gzi"))
+    fn index_name(name: &str, root: &Path, min_contig_length: u64) -> Result<Index> {
+        let gzi = BgzfIndex::read(root.join(format!("{}.track.gz.gzi", name)))
             .context("Failed to read .gzi")?;
         let track_index = TrackIndex::read(
-            with_suffix(track_path.to_path_buf(), ".idx"),
+            root.join(format!("{}.track.gz.idx", name)),
             min_contig_length,
         )
         .context("Failed to read .idx")?;
-        Ok((track_name, Index { gzi, track_index }))
+        Ok(Index { gzi, track_index })
     }
 }
 
@@ -125,10 +128,10 @@ impl ArchivedTrackMap {
     }
 
     pub(crate) fn contigs(&self, track_name: &str) -> Result<Vec<(&[u8], u64)>> {
-        let entry = self
-            .map
-            .get(track_name)
-            .ok_or(anyhow::anyhow!("Track name not found"))?;
+        let entry = self.map.get(track_name).ok_or(anyhow::anyhow!(format!(
+            "Track name not found: {}",
+            track_name
+        )))?;
         Ok(entry.track_index.contigs())
     }
 

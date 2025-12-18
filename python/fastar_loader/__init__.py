@@ -31,12 +31,27 @@ class FastarLoader:
         path: str | Path,
         strict: bool = True,
         force_build: bool = False,
-        no_cache: bool = False,
+        no_cache: bool | None = None,
         min_contig_length: int = 0,
         num_workers: int | None = None,
-        show_progress: bool = True,
-        storage_method: str = "mmap",
+        show_progress: bool | None = None,
+        storage_method: str | None = None,
+        names: list[str] | None = None,
     ):
+        if names is None:
+            if no_cache is None:
+                no_cache = False
+            if storage_method is None:
+                storage_method = "mmap"
+            if show_progress is None:
+                show_progress = True
+        else:
+            if no_cache is None:
+                no_cache = True
+            if storage_method is None:
+                storage_method = "memory"
+            if show_progress is None:
+                show_progress = False
         self._path = str(path)
         self._index_map = _rust.FastaMap.load(
             self._path,
@@ -47,6 +62,7 @@ class FastarLoader:
             num_workers,
             show_progress,
             storage_method,
+            names,
         )
 
     @property
@@ -83,12 +99,27 @@ class TrackLoader:
         path: str | Path,
         strict: bool = True,
         force_build: bool = False,
-        no_cache: bool = False,
+        no_cache: bool | None = None,
         min_contig_length: int = 0,
         num_workers: int | None = None,
-        show_progress: bool = True,
-        storage_method: str = "mmap",
+        show_progress: bool | None = None,
+        storage_method: str | None = None,
+        names: list[str] | None = None,
     ):
+        if names is None:
+            if no_cache is None:
+                no_cache = False
+            if storage_method is None:
+                storage_method = "mmap"
+            if show_progress is None:
+                show_progress = True
+        else:
+            if no_cache is None:
+                no_cache = True
+            if storage_method is None:
+                storage_method = "memory"
+            if show_progress is None:
+                show_progress = False
         self._path = str(path)
         self._index_map = _rust.TrackMap.load(
             self._path,
@@ -99,6 +130,7 @@ class TrackLoader:
             num_workers,
             show_progress,
             storage_method,
+            names,
         )
 
     @property
