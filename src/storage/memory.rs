@@ -1,8 +1,10 @@
-use crate::storage::archive::{load_bytes, LoadableStorage, MutableStorage, Storage};
+use crate::storage::archive::{
+    load_bytes, LoadableStorage, MutableStorage, SharableStorage, Storage,
+};
 use anyhow::Result;
 
 pub(crate) struct MemoryStorage {
-    data: Vec<u8>,
+    pub(crate) data: Vec<u8>,
 }
 
 impl AsRef<[u8]> for MemoryStorage {
@@ -28,5 +30,15 @@ impl MutableStorage for MemoryStorage {
 impl LoadableStorage for MemoryStorage {
     fn load(path: &std::path::Path) -> Result<Self> {
         load_bytes(path)
+    }
+}
+
+impl SharableStorage for MemoryStorage {
+    fn export(&self) -> Vec<u8> {
+        self.data.clone()
+    }
+
+    fn import(data: Vec<u8>) -> Result<Self> {
+        Ok(MemoryStorage { data })
     }
 }

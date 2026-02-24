@@ -32,11 +32,12 @@ impl LoadableStorage for MmapStorage {
 }
 
 impl SharableStorage for MmapStorage {
-    fn get_id(&self) -> &str {
-        &self.path
+    fn export(&self) -> Vec<u8> {
+        self.path.clone().into_bytes()
     }
 
-    fn from_id(os_id: &str) -> Result<Self> {
-        Self::load(&PathBuf::from(os_id))
+    fn import(data: Vec<u8>) -> Result<Self> {
+        let path = String::from_utf8(data)?;
+        Self::load(&PathBuf::from(path))
     }
 }

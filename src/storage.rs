@@ -60,29 +60,40 @@ where
         }
     }
 
-    pub fn get_id(&self) -> Option<String> {
+    pub fn export(&self) -> Option<Vec<u8>> {
+        fn prefix(storage_type: &str, id: Vec<u8>) -> Vec<u8> {
+            let mut result = storage_type.as_bytes().to_vec();
+            result.push(b':');
+            result.extend(id);
+            result
+        }
+
         match self {
-            DynamicStorage::Memory(_) => None,
-            DynamicStorage::Shmem(storage) => Some(format!("Shmem:{}", storage.get_id())),
-            DynamicStorage::Mmap(storage) => Some(format!("Mmap:{}", storage.get_id())),
+            DynamicStorage::Memory(storage) => Some(prefix("Memory", storage.export())),
+            DynamicStorage::Shmem(storage) => Some(prefix("Shmem", storage.export())),
+            DynamicStorage::Mmap(storage) => Some(prefix("Mmap", storage.export())),
         }
     }
 
-    pub fn from_id(handle: &str) -> Result<DynamicStorage<T>> {
-        let parts: Vec<&str> = handle.splitn(2, ':').collect();
-        if parts.len() != 2 {
-            anyhow::bail!("Invalid handle format");
-        }
-        let storage_type = parts[0];
-        let id = parts[1];
+    pub fn import(mut data: Vec<u8>) -> Result<DynamicStorage<T>> {
+        let colon = data
+            .iter()
+            .position(|&b| b == b':')
+            .ok_or_else(|| anyhow::anyhow!("Invalid handle format: missing colon separator"))?;
+        let storage_type = std::str::from_utf8(&data[..colon])?.to_string();
+        let id = data.split_off(colon + 1);
 
-        match storage_type {
+        match storage_type.as_str() {
+            "Memory" => {
+                let storage = ArchiveStorage::<T, MemoryStorage>::import(id)?;
+                Ok(DynamicStorage::Memory(storage))
+            }
             "Shmem" => {
-                let storage = ArchiveStorage::<T, ShmemStorage>::from_id(id)?;
+                let storage = ArchiveStorage::<T, ShmemStorage>::import(id)?;
                 Ok(DynamicStorage::Shmem(storage))
             }
             "Mmap" => {
-                let storage = ArchiveStorage::<T, MmapStorage>::from_id(id)?;
+                let storage = ArchiveStorage::<T, MmapStorage>::import(id)?;
                 Ok(DynamicStorage::Mmap(storage))
             }
             _ => {

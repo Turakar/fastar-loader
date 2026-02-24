@@ -95,8 +95,8 @@ impl PyFastaMap {
     }
 
     #[getter]
-    fn handle(&self) -> PyResult<Option<String>> {
-        let handle = self.storage.get_id();
+    fn handle(&self) -> PyResult<Option<Vec<u8>>> {
+        let handle = self.storage.export();
         Ok(handle)
     }
 
@@ -106,8 +106,8 @@ impl PyFastaMap {
     }
 
     #[staticmethod]
-    fn from_handle(handle: &str, root: &str) -> PyResult<Self> {
-        DynamicStorage::<FastaMap>::from_id(handle)
+    fn from_handle(handle: Vec<u8>, root: &str) -> PyResult<Self> {
+        DynamicStorage::<FastaMap>::import(handle)
             .map(|storage| PyFastaMap {
                 storage,
                 root: root.to_string(),
@@ -189,8 +189,9 @@ impl PyTrackMap {
     }
 
     #[getter]
-    fn handle(&self) -> PyResult<Option<String>> {
-        Ok(self.storage.get_id())
+    fn handle(&self) -> PyResult<Option<Vec<u8>>> {
+        let handle = self.storage.export();
+        Ok(handle)
     }
 
     #[getter]
@@ -199,8 +200,8 @@ impl PyTrackMap {
     }
 
     #[staticmethod]
-    fn from_handle(handle: &str, root: &str) -> PyResult<Self> {
-        DynamicStorage::<TrackMap>::from_id(handle)
+    fn from_handle(handle: Vec<u8>, root: &str) -> PyResult<Self> {
+        DynamicStorage::<TrackMap>::import(handle)
             .map(|storage| PyTrackMap {
                 storage,
                 root: root.to_string(),

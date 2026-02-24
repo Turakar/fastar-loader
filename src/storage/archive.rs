@@ -33,8 +33,8 @@ pub(crate) trait MutableStorage: Storage {
 }
 
 pub(crate) trait SharableStorage: Storage {
-    fn get_id(&self) -> &str;
-    fn from_id(os_id: &str) -> Result<Self>
+    fn export(&self) -> Vec<u8>;
+    fn import(os_id: Vec<u8>) -> Result<Self>
     where
         Self: Sized;
 }
@@ -46,7 +46,7 @@ pub(crate) trait LoadableStorage: Storage {
 }
 
 pub(crate) struct ArchiveStorage<T, S> {
-    storage: S,
+    pub(crate) storage: S,
     phantom_t: PhantomData<T>,
 }
 
@@ -240,13 +240,13 @@ where
     T::Archived: 'static + Portable,
     S: SharableStorage,
 {
-    pub(crate) fn get_id(&self) -> &str {
-        self.storage.get_id()
+    pub(crate) fn export(&self) -> Vec<u8> {
+        self.storage.export()
     }
 
-    pub(crate) fn from_id(id: &str) -> Result<Self> {
+    pub(crate) fn import(id: Vec<u8>) -> Result<Self> {
         // Map the shared memory using the OS ID
-        let storage = S::from_id(id).context("Failed to open shared memory from ID")?;
+        let storage = S::import(id).context("Failed to open shared memory from ID")?;
         // Verify the magic value
         let magic_value = type_specific_magic::<T::Archived>();
         unsafe {
@@ -386,14 +386,15 @@ mod tests {
     fn test_invalid_magic_shmem() {
         let data = FastaMap::build("test-data/assemblies", true, 0, None, false, None).unwrap();
         let container: ArchiveStorage<FastaMap, ShmemStorage> = ArchiveStorage::new(data).unwrap();
-        let os_id = container.get_id();
-        let shmem = ShmemConf::new().os_id(os_id).open().unwrap();
+        let handle = container.export();
+        let os_id = String::from_utf8(handle.clone()).unwrap();
+        let shmem: shared_memory::Shmem = ShmemConf::new().os_id(os_id).open().unwrap();
         unsafe {
             let shmem_ptr = shmem.as_ptr();
             // Write an invalid magic value at the beginning of the shared memory
             std::ptr::write(shmem_ptr as *mut u64, 0);
         }
-        let result: Result<ArchiveStorage<FastaMap, ShmemStorage>> = ArchiveStorage::from_id(os_id);
+        let result: Result<ArchiveStorage<FastaMap, ShmemStorage>> = ArchiveStorage::import(handle);
         assert!(result.is_err());
     }
 
@@ -401,9 +402,9 @@ mod tests {
     fn test_from_os_id() {
         let data = FastaMap::build("test-data/assemblies", true, 0, None, false, None).unwrap();
         let container: ArchiveStorage<FastaMap, ShmemStorage> = ArchiveStorage::new(data).unwrap();
-        let os_id = container.get_id();
+        let os_id = container.export();
         let new_container: ArchiveStorage<FastaMap, ShmemStorage> =
-            ArchiveStorage::from_id(os_id).unwrap();
+            ArchiveStorage::import(os_id).unwrap();
         assert_eq!(container.as_ref().names(), new_container.as_ref().names());
     }
 

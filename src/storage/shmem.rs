@@ -34,15 +34,16 @@ impl LoadableStorage for ShmemStorage {
 }
 
 impl SharableStorage for ShmemStorage {
-    fn get_id(&self) -> &str {
-        self.shmem.get_os_id()
+    fn export(&self) -> Vec<u8> {
+        self.shmem.get_os_id().as_bytes().to_vec()
     }
 
-    fn from_id(os_id: &str) -> Result<Self>
+    fn import(data: Vec<u8>) -> Result<Self>
     where
         Self: Sized,
     {
-        let shmem = ShmemConf::new().os_id(os_id).open()?;
+        let os_id_str = String::from_utf8(data)?;
+        let shmem = ShmemConf::new().os_id(os_id_str).open()?;
         Ok(ShmemStorage { shmem })
     }
 }

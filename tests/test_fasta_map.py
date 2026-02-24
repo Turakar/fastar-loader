@@ -59,7 +59,7 @@ def test_read_sequence(
     assert_array_equal(sequence, expected_sequence)
 
 
-@pytest.mark.parametrize("storage_method", ["shmem", "mmap"])
+@pytest.mark.parametrize("storage_method", ["shmem", "mmap", "memory"])
 def test_pickle(
     assemblies_path: Path,
     fasta_test_data: tuple[Path, str, str, int, int, np.ndarray],
@@ -79,7 +79,7 @@ def test_pickle(
     clean_cache(assemblies_path)
 
 
-@pytest.mark.parametrize("storage_method", ["shmem", "mmap"])
+@pytest.mark.parametrize("storage_method", ["shmem", "mmap", "memory"])
 def test_multiprocess(
     assemblies_path: Path,
     fasta_test_data: tuple[Path, str, str, int, int, np.ndarray],
