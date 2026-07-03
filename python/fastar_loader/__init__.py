@@ -74,7 +74,7 @@ class FastarLoader:
             (contig.decode("utf-8"), length) for contig, length in self._index_map.contigs(name)
         ]
 
-    def read_sequence(self, name: str, contig: str, start: int, length: int) -> bytes:
+    def read_sequence(self, name: str, contig: str, start: int, length: int) -> np.ndarray:
         return self._index_map.read_sequence(name, contig.encode(), start, length)
 
     def __getstate__(self) -> dict[str, object]:
