@@ -11,14 +11,19 @@ import pyfaidx
 import pytest
 
 _TEST_REGIONS = [
-    dict(name="GCA_000146045.2", contig="BK006935.2", start=0, length=60),
-    dict(name="GCA_000146045.2", contig="BK006949.2", start=200000, length=60),
-    dict(name="GCF_000182965.3", contig="NC_032094.1", start=1032000, length=1033292 - 1032000),
-    dict(name="GCF_003013715.1", contig="NC_072815.1", start=10000, length=10000),
-    dict(name="foo/GCA_000146045.2", contig="BK006935.2", start=0, length=60),
-    dict(name="foo/GCA_000146045.2", contig="BK006949.2", start=180000, length=60),
-    dict(name="foo/bar/GCF_000182965.3", contig="NC_032094.1", start=2000, length=63),
-    dict(name="foo/bar/GCF_003013715.1", contig="NC_072815.1", start=1000, length=10000),
+    {"name": "GCA_000146045.2", "contig": "BK006935.2", "start": 0, "length": 60},
+    {"name": "GCA_000146045.2", "contig": "BK006949.2", "start": 200000, "length": 60},
+    {
+        "name": "GCF_000182965.3",
+        "contig": "NC_032094.1",
+        "start": 1032000,
+        "length": 1033292 - 1032000,
+    },
+    {"name": "GCF_003013715.1", "contig": "NC_072815.1", "start": 10000, "length": 10000},
+    {"name": "foo/GCA_000146045.2", "contig": "BK006935.2", "start": 0, "length": 60},
+    {"name": "foo/GCA_000146045.2", "contig": "BK006949.2", "start": 180000, "length": 60},
+    {"name": "foo/bar/GCF_000182965.3", "contig": "NC_032094.1", "start": 2000, "length": 63},
+    {"name": "foo/bar/GCF_003013715.1", "contig": "NC_072815.1", "start": 1000, "length": 10000},
 ]
 
 
@@ -88,7 +93,7 @@ def fasta_test_data(
 def fasta_structure(assemblies_path: Path) -> dict[str, list[tuple[str, int]]]:
     fasta_structure = {}
     for path in assemblies_path.glob("*.fna.gz.fai"):
-        name = path.name.strip(".fna.gz.fai")
+        name = path.name.removesuffix(".fna.gz.fai")
         index = pl.read_csv(
             path,
             separator="\t",
@@ -154,7 +159,7 @@ def track_test_data(
 def track_structure(tracks_path: Path) -> dict[str, list[tuple[str, int]]]:
     track_structure = {}
     for path in tracks_path.glob("*.track.gz.idx"):
-        name = path.name.strip(".track.gz.idx")
+        name = path.name.removesuffix(".track.gz.idx")
         index = pl.read_csv(
             path,
             separator="\t",
