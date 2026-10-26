@@ -33,9 +33,9 @@ impl FastaIndex {
             .map(|record| Record {
                 contig: record.name().to_vec(),
                 length: record.length(),
-                offset: record.offset(),
-                line_bases: record.line_bases(),
-                line_width: record.line_width(),
+                offset: record.position(),
+                line_bases: record.line_base_count().get(),
+                line_width: record.line_width().get(),
             })
             .filter(|record| record.length >= min_contig_length)
             .collect();
