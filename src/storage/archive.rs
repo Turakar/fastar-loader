@@ -358,9 +358,17 @@ pub(crate) fn load_bytes<S: MutableStorage>(path: &Path) -> Result<S> {
     Ok(storage)
 }
 
+/// Layout version of the archived indices, part of every magic value (and so of the cache file
+/// names). Archives are read with `access_unchecked`, and a `TypeId` does not change when a
+/// struct's fields do: bump this whenever an archived type changes, so that older caches are
+/// rebuilt instead of misread.
+/// - 2: `FastaIndex` and `TrackIndex` store their contigs' positions ordered by name.
+const ARCHIVE_LAYOUT_VERSION: u32 = 2;
+
 pub(crate) fn type_specific_magic<T: 'static>() -> u64 {
     let mut hasher = DefaultHasher::new();
     TypeId::of::<T>().hash(&mut hasher);
+    ARCHIVE_LAYOUT_VERSION.hash(&mut hasher);
     hasher.finish()
 }
 
