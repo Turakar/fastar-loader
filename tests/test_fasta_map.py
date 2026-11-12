@@ -142,3 +142,29 @@ def test_min_contig_length(assemblies_path: Path, expected_names: list[str]) -> 
                 assert (contig, length) not in restricted_contigs
         for contig, length in restricted_contigs:
             assert (contig, length) in ref_contigs
+
+
+@pytest.mark.parametrize("storage_method", ["shmem", "mmap", "memory"])
+def test_build_if_missing_false_requires_cache(
+    assemblies_path: Path, expected_names: list[str], storage_method: str
+) -> None:
+    clean_cache(assemblies_path)
+    with pytest.raises(RuntimeError, match="build_if_missing=false"):
+        FastarLoader(
+            assemblies_path, no_cache=False, storage_method=storage_method, build_if_missing=False
+        )
+    assert not list(assemblies_path.glob(".*-map-cache-*")), (
+        "no cache may be written without building"
+    )
+    FastarLoader(assemblies_path, no_cache=False, storage_method=storage_method)
+    loader = FastarLoader(
+        assemblies_path, no_cache=False, storage_method=storage_method, build_if_missing=False
+    )
+    assert sorted(loader.names) == sorted(expected_names)
+    clean_cache(assemblies_path)
+
+
+@pytest.mark.parametrize("kwargs", [{"no_cache": True}, {"no_cache": False, "force_build": True}])
+def test_build_if_missing_false_conflicts(assemblies_path: Path, kwargs: dict[str, bool]) -> None:
+    with pytest.raises(RuntimeError, match="cannot be combined"):
+        FastarLoader(assemblies_path, storage_method="memory", build_if_missing=False, **kwargs)

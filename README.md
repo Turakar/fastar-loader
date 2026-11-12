@@ -35,6 +35,8 @@ loader.read_sequence(name="GCA_000146045.2", contig="BK006935.2", start=0, lengt
 
 After the first load, the indices are cached to disk in the same directory for faster loading.
 
+If no usable cache exists, every process that loads the directory builds the index itself and writes the cache. When many processes load the same directory at once, for example the ranks of a distributed job on a shared filesystem, pass `build_if_missing=False`: the loader then raises an error instead of building, and the cache can be built once beforehand from a single process.
+
 
 ## Development
 This project uses uv, maturin, pytest, cargo, git-lfs and pre-commit. Useful commands include:

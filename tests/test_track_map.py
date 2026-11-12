@@ -150,3 +150,27 @@ def _read_f32(
 ) -> np.ndarray:
     bytes_data = track_loader.read_sequence(name, contig, start * 4, length * 4)
     return np.frombuffer(bytes_data, dtype=np.float32)
+
+
+@pytest.mark.parametrize("storage_method", ["shmem", "mmap", "memory"])
+def test_build_if_missing_false_requires_cache(
+    tracks_path: Path, expected_names: list[str], storage_method: str
+) -> None:
+    clean_cache(tracks_path)
+    with pytest.raises(RuntimeError, match="build_if_missing=false"):
+        TrackLoader(
+            tracks_path, no_cache=False, storage_method=storage_method, build_if_missing=False
+        )
+    assert not list(tracks_path.glob(".*-map-cache-*")), "no cache may be written without building"
+    TrackLoader(tracks_path, no_cache=False, storage_method=storage_method)
+    loader = TrackLoader(
+        tracks_path, no_cache=False, storage_method=storage_method, build_if_missing=False
+    )
+    assert sorted(loader.names) == sorted(expected_names)
+    clean_cache(tracks_path)
+
+
+@pytest.mark.parametrize("kwargs", [{"no_cache": True}, {"no_cache": False, "force_build": True}])
+def test_build_if_missing_false_conflicts(tracks_path: Path, kwargs: dict[str, bool]) -> None:
+    with pytest.raises(RuntimeError, match="cannot be combined"):
+        TrackLoader(tracks_path, storage_method="memory", build_if_missing=False, **kwargs)
