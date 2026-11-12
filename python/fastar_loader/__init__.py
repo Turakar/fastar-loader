@@ -37,6 +37,7 @@ class FastarLoader:
         show_progress: bool | None = None,
         storage_method: str | None = None,
         names: list[str] | None = None,
+        build_if_missing: bool = True,
     ):
         if names is None:
             if no_cache is None:
@@ -63,6 +64,7 @@ class FastarLoader:
             show_progress,
             storage_method,
             names,
+            build_if_missing,
         )
 
     @property
@@ -105,6 +107,7 @@ class TrackLoader:
         show_progress: bool | None = None,
         storage_method: str | None = None,
         names: list[str] | None = None,
+        build_if_missing: bool = True,
     ):
         if names is None:
             if no_cache is None:
@@ -131,6 +134,7 @@ class TrackLoader:
             show_progress,
             storage_method,
             names,
+            build_if_missing,
         )
 
     @property

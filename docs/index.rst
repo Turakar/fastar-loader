@@ -39,6 +39,11 @@ Creating a loader and loading a certain region::
 
 After the first load, the indices are cached to disk in the same directory for faster loading.
 
+If no usable cache exists, every process that loads the directory builds the index itself and writes the cache.
+When many processes load the same directory at once, for example the ranks of a distributed job on a shared
+filesystem, pass ``build_if_missing=False``: the loader then raises an error instead of building, and the cache
+can be built once beforehand from a single process.
+
 .. toctree::
    :maxdepth: 2
    :caption: Contents:

@@ -61,6 +61,7 @@ struct PyFastaMap {
 impl PyFastaMap {
     #[allow(clippy::too_many_arguments)]
     #[staticmethod]
+    #[pyo3(signature = (root, strict, force_build, no_cache, min_contig_length, num_workers, show_progress, storage_method, names_list, build_if_missing=true))]
     fn load(
         py: Python,
         root: &str,
@@ -72,6 +73,7 @@ impl PyFastaMap {
         show_progress: bool,
         storage_method: &str,
         names_list: Option<Vec<String>>,
+        build_if_missing: bool,
     ) -> PyResult<Self> {
         py.detach(|| {
             cache::load::<FastaMap>(
@@ -85,6 +87,7 @@ impl PyFastaMap {
                 no_cache,
                 force_build,
                 names_list,
+                build_if_missing,
             )
         })
         .map(|storage| PyFastaMap {
@@ -155,6 +158,7 @@ struct PyTrackMap {
 impl PyTrackMap {
     #[allow(clippy::too_many_arguments)]
     #[staticmethod]
+    #[pyo3(signature = (root, strict, force_build, no_cache, min_contig_length, num_workers, show_progress, storage_method, names, build_if_missing=true))]
     fn load(
         py: Python,
         root: &str,
@@ -166,6 +170,7 @@ impl PyTrackMap {
         show_progress: bool,
         storage_method: &str,
         names: Option<Vec<String>>,
+        build_if_missing: bool,
     ) -> PyResult<Self> {
         py.detach(|| {
             cache::load::<TrackMap>(
@@ -179,6 +184,7 @@ impl PyTrackMap {
                 no_cache,
                 force_build,
                 names,
+                build_if_missing,
             )
         })
         .map(|storage| PyTrackMap {

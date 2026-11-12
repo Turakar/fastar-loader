@@ -78,6 +78,7 @@ pub(crate) fn load<T>(
     no_cache: bool,
     force_build: bool,
     names: Option<Vec<String>>,
+    build_if_missing: bool,
 ) -> Result<DynamicStorage<T>>
 where
     // Trait bounds for rkyv serialization and deserialization, both to AlignedVec and IoWriter
@@ -116,6 +117,9 @@ where
     }
     if names.is_some() && !no_cache {
         bail!("names_list can only be used with no_cache=true");
+    }
+    if !build_if_missing && (no_cache || force_build) {
+        bail!("build_if_missing=false cannot be combined with no_cache=true or force_build=true, which always build");
     }
     let cache_path = Path::new(dir).join(format!(
         "{}-{:016x}",
@@ -159,6 +163,12 @@ where
         } else {
             bail!("Unknown storage method: {}", storage_method);
         }
+    }
+    if !build_if_missing {
+        bail!(
+            "No usable cache at {} and build_if_missing=false. Build the cache once (for example from a single process with build_if_missing=true), then load it.",
+            cache_path.display()
+        );
     }
     let map = T::build(
         dir,
