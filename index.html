@@ -99,6 +99,10 @@ $ samtools faidx XXX.fna
 </pre></div>
 </div>
 <p>After the first load, the indices are cached to disk in the same directory for faster loading.</p>
+<p>If no usable cache exists, every process that loads the directory builds the index itself and writes the cache.
+When many processes load the same directory at once, for example the ranks of a distributed job on a shared
+filesystem, pass <code class="docutils literal notranslate"><span class="pre">build_if_missing=False</span></code>: the loader then raises an error instead of building, and the cache
+can be built once beforehand from a single process.</p>
 <div class="toctree-wrapper compound">
 <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
 <ul>
